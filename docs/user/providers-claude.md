@@ -6,6 +6,19 @@ shared provider settings.
 
 ## Separate accounts or configurations
 
+Choose **Add account** in the chat's model picker or **Settings → Providers**,
+select **Claude Code**, and name the account. Complete the sign-in prompt, then
+choose **Done**. Repeat for each account you want to use; there is no fixed account limit.
+Choose the account and model from the model picker to continue a conversation with
+another connected Claude account. Stop an active turn before switching.
+
+Accounts added this way keep separate credentials and settings while sharing
+conversation history. They do not replace your normal Claude CLI login. You can
+rename, reconnect, or remove them in **Settings → Providers**. Existing conversations
+created with a manually configured Claude directory remain attached to that directory.
+
+### Manual configurations
+
 Use a separate Claude config directory for each account. This also works for named
 presets that need different Claude settings or a router connection.
 
@@ -30,7 +43,7 @@ location intact. Use the same variable for the login command. Setting `HOME`
 instead can put credentials where this provider will not find them.
 
 Check the account reported in provider settings after signing in. Existing
-threads can switch only between Claude instances with the same config directory.
+threads can switch only between these manual instances with the same config directory.
 Separate account directories stay isolated, including their local conversation
 state. Claude does not have Codex's shared-home and shadow-home arrangement.
 

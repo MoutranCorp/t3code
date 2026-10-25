@@ -9,6 +9,20 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 
 const quotePath = Schema.encodeSync(Schema.fromJsonString(Schema.String));
 
+export const resolveClaudeAccountSettings = Effect.fn("resolveClaudeAccountSettings")(function* (
+  config: ClaudeSettings,
+  stateDir: string,
+  instanceId: string,
+) {
+  if (!config.managedAccount) return config;
+  const path = yield* Path.Path;
+  return {
+    ...config,
+    homePath: path.join(stateDir, "providers", "claude", "accounts", instanceId),
+    sessionHomePath: path.join(stateDir, "providers", "claude", "shared"),
+  };
+});
+
 export const resolveClaudeHomePath = Effect.fn("resolveClaudeHomePath")(function* (
   config: Pick<ClaudeSettings, "homePath">,
   environment?: NodeJS.ProcessEnv,
@@ -28,7 +42,7 @@ export const resolveClaudeHomePath = Effect.fn("resolveClaudeHomePath")(function
 });
 
 export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function* (
-  config: Pick<ClaudeSettings, "homePath">,
+  config: Pick<ClaudeSettings, "homePath" | "managedAccount">,
   baseEnv?: NodeJS.ProcessEnv,
 ): Effect.fn.Return<NodeJS.ProcessEnv, never, Path.Path> {
   const resolvedBaseEnv = baseEnv ?? process.env;
@@ -37,6 +51,13 @@ export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function
   const resolvedHomePath = yield* resolveClaudeHomePath(config);
   return {
     ...resolvedBaseEnv,
+    ...(config.managedAccount
+      ? {
+          ANTHROPIC_API_KEY: undefined,
+          ANTHROPIC_AUTH_TOKEN: undefined,
+          CLAUDE_CODE_OAUTH_TOKEN: undefined,
+        }
+      : {}),
     // Changing HOME hides macOS Keychain credentials; use CLAUDE_CONFIG_DIR to keep login access.
     CLAUDE_CONFIG_DIR: resolvedHomePath,
   };
@@ -57,13 +78,61 @@ export const hasClaudeManagedMcpConfig = Effect.fn("hasClaudeManagedMcpConfig")(
 
 export const makeClaudeContinuationGroupKey = Effect.fn("makeClaudeContinuationGroupKey")(
   function* (
-    config: Pick<ClaudeSettings, "homePath">,
+    config: Pick<ClaudeSettings, "homePath" | "sessionHomePath">,
     environment?: NodeJS.ProcessEnv,
   ): Effect.fn.Return<string, never, Path.Path> {
-    const resolvedHomePath = yield* resolveClaudeHomePath(config, environment);
+    const resolvedHomePath = yield* resolveClaudeHomePath(
+      { homePath: config.sessionHomePath?.trim() || config.homePath },
+      environment,
+    );
     return `claude:home:${resolvedHomePath}`;
   },
 );
+
+export class ClaudeSessionHomeError extends Schema.TaggedError<ClaudeSessionHomeError>()(
+  "ClaudeSessionHomeError",
+  { detail: Schema.String, cause: Schema.optional(Schema.Defect()) },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+const isClaudeSessionHomeError = Schema.is(ClaudeSessionHomeError);
+
+export const prepareClaudeSessionHome = Effect.fn("prepareClaudeSessionHome")(function* (
+  config: Pick<ClaudeSettings, "homePath" | "sessionHomePath">,
+  environment?: NodeJS.ProcessEnv,
+) {
+  if (!config.sessionHomePath?.trim()) return;
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const accountHome = yield* resolveClaudeHomePath(config, environment);
+  const sessionHome = yield* resolveClaudeHomePath({ homePath: config.sessionHomePath });
+  if (accountHome === sessionHome) return;
+  const target = path.join(sessionHome, "projects");
+  const link = path.join(accountHome, "projects");
+  yield* Effect.gen(function* () {
+    yield* fs.makeDirectory(target, { recursive: true });
+    yield* fs.makeDirectory(accountHome, { recursive: true });
+    const existing = yield* fs.readLink(link).pipe(Effect.catch(() => Effect.succeed(null)));
+    if (existing !== null && path.resolve(path.dirname(link), existing) === target) return;
+    if (existing !== null || (yield* fs.exists(link))) {
+      return yield* new ClaudeSessionHomeError({
+        detail: `Claude history directory '${link}' already exists. Use a fresh account directory to share conversations.`,
+      });
+    }
+    yield* fs.symlink(target, link);
+  }).pipe(
+    Effect.mapError((cause) =>
+      isClaudeSessionHomeError(cause)
+        ? cause
+        : new ClaudeSessionHomeError({
+            detail: "Could not prepare shared Claude conversations.",
+            cause,
+          }),
+    ),
+  );
+});
 
 export const makeClaudeCapabilitiesCacheKey = Effect.fn("makeClaudeCapabilitiesCacheKey")(
   function* (

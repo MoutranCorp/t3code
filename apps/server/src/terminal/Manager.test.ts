@@ -1282,6 +1282,13 @@ it.layer(
       config: { homePath: "/configured/claude" },
       expectedHome: "/configured/claude",
     },
+    {
+      name: "managed Claude account home",
+      driver: "claudeAgent",
+      variable: "CLAUDE_CONFIG_DIR",
+      config: { managedAccount: true },
+      expectedHome: "/server-state/providers/claude/accounts/configured_home",
+    },
   ])("prefers $name over the instance environment", ({ driver, variable, config, expectedHome }) =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
@@ -1290,6 +1297,7 @@ it.layer(
         serverSettings,
         path,
         rawProviderInstanceId: "configured_home",
+        stateDir: path.resolve("/server-state"),
         env: undefined,
       });
 

@@ -63,7 +63,10 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as ServerConfig from "../config.ts";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
-import { makeClaudeEnvironment } from "../provider/Drivers/ClaudeHome.ts";
+import {
+  makeClaudeEnvironment,
+  resolveClaudeAccountSettings,
+} from "../provider/Drivers/ClaudeHome.ts";
 import { deriveProviderInstanceConfigMap } from "../provider/ProviderInstanceRegistryHydration.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import {
@@ -1422,6 +1425,7 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
   readonly serverSettings: ServerSettings.ServerSettingsService["Service"];
   readonly path: Path.Path;
   readonly rawProviderInstanceId: string;
+  readonly stateDir?: string;
   readonly env: Record<string, string> | undefined;
 }) {
   const providerInstanceId = ProviderInstanceId.make(input.rawProviderInstanceId);
@@ -1446,7 +1450,14 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
   } else if (instance.driver === "claudeAgent") {
     const config = decodeClaudeSettings(instance.config ?? {});
     if (Option.isSome(config)) {
-      resolved = yield* makeClaudeEnvironment(config.value, resolved).pipe(
+      const effectiveConfig = input.stateDir
+        ? yield* resolveClaudeAccountSettings(
+            config.value,
+            input.stateDir,
+            providerInstanceId,
+          ).pipe(Effect.provideService(Path.Path, input.path))
+        : config.value;
+      resolved = yield* makeClaudeEnvironment(effectiveConfig, resolved).pipe(
         Effect.provideService(Path.Path, input.path),
       );
     }
@@ -1459,7 +1470,8 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
 
 /** @public */
 export const make = Effect.fn("TerminalManager.make")(function* () {
-  const { terminalLogsDir, providerStatusCacheDir, baseDir } = yield* ServerConfig.ServerConfig;
+  const { terminalLogsDir, providerStatusCacheDir, baseDir, stateDir } =
+    yield* ServerConfig.ServerConfig;
   const ptyAdapter = yield* PtyAdapter.PtyAdapter;
   const portDiscovery = yield* PortScanner.PortDiscovery;
   const nativeTelemetry = yield* NativeTelemetryClient.NativeTelemetryClient;
@@ -1472,6 +1484,7 @@ export const make = Effect.fn("TerminalManager.make")(function* () {
       serverSettings,
       path,
       rawProviderInstanceId,
+      stateDir,
       env,
     }),
   );

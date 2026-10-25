@@ -1,11 +1,14 @@
 import {
   ANTIGRAVITY_DEFAULT_MODEL,
+  AuthProvidersManageScope,
   type ProviderInstanceId,
   type EnvironmentId,
   type ProviderDriverKind,
   type ResolvedKeybindingsConfig,
 } from "@t3tools/contracts";
-import { memo, useEffect, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useState } from "react";
+import { useEnvironmentScope } from "../../state/session";
+import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -26,6 +29,12 @@ import {
 } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { shortcutLabelForCommand } from "../../keybindings";
+
+const AddAgentAccountDialog = lazy(() =>
+  import("../settings/AddAgentAccountDialog").then((module) => ({
+    default: module.AddAgentAccountDialog,
+  })),
+);
 
 export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   environmentId: EnvironmentId | null;
@@ -56,6 +65,8 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
 }) {
   const composerFloatingLayerProps = useComposerMenuProps();
   const [uncontrolledIsMenuOpen, setUncontrolledIsMenuOpen] = useState(false);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const canAddAccount = useEnvironmentScope(props.environmentId, AuthProvidersManageScope);
   const isMenuOpen = props.open ?? uncontrolledIsMenuOpen;
   const size = props.size ?? "sm";
 
@@ -181,136 +192,168 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     : (props.triggerLabel ?? allModelNames ?? triggerLabel);
 
   return (
-    <Popover
-      open={isMenuOpen}
-      onOpenChange={(open) => {
-        if (props.disabled) {
-          setIsMenuOpen(false);
-          return;
-        }
-        setIsMenuOpen(open);
-      }}
-    >
-      <PopoverTrigger
-        render={
-          <ComposerControl
-            aria-label={props.triggerAriaLabel ?? allModelNames}
-            size={size}
-            data-chat-provider-model-picker="true"
-            className={cn(
-              "min-w-0 shrink justify-between whitespace-nowrap",
-              props.compact
-                ? "max-w-42 shrink-0"
-                : !props.isComposerOwned && "max-w-48 sm:max-w-56",
-              props.triggerClassName,
-            )}
-            disabled={props.disabled}
+    <>
+      {addingAccount && props.environmentId ? (
+        <Suspense fallback={null}>
+          <AddAgentAccountDialog
+            environmentId={props.environmentId}
+            environmentLabel="this environment"
+            onClose={() => setAddingAccount(false)}
           />
-        }
-      >
-        <span
-          className={cn("flex min-w-0 flex-1 items-center", size === "xs" ? "gap-1" : "gap-1.5")}
-        >
-          {selectedEntries && props.triggerLabel === undefined ? (
-            <span className="flex shrink-0 items-center -space-x-1" aria-hidden="true">
-              {selectedEntries
-                .slice(0, 3)
-                .map((selection) =>
-                  selection.entry ? (
-                    <ProviderInstanceIcon
-                      key={`${selection.instanceId}:${selection.model}`}
-                      driverKind={selection.entry.driverKind}
-                      displayName={selection.entry.displayName}
-                      accentColor={selection.entry.accentColor}
-                      className="size-4 rounded-full bg-(--chat-composer-glass-surface,var(--background)) ring-2 ring-(--chat-composer-glass-surface,var(--background))"
-                      iconClassName="size-4"
-                    />
-                  ) : null,
-                )}
-              {selectedEntries.length > 3 ? (
-                <span className="relative z-30 flex size-4 items-center justify-center rounded-full bg-(--chat-composer-glass-surface,var(--background)) text-3xs ring-2 ring-(--chat-composer-glass-surface,var(--background))">
-                  +{selectedEntries.length - 3}
-                </span>
-              ) : null}
-            </span>
-          ) : activeEntry && props.triggerLabel === undefined ? (
-            <ProviderInstanceIcon
-              driverKind={activeEntry.driverKind}
-              displayName={activeEntry.displayName}
-              accentColor={activeEntry.accentColor}
-              acpRegistryAgentId={activeEntry.acpRegistryAgentId}
-              acpRegistryIconUrl={activeEntry.acpRegistryIconUrl}
-              showBadge={showInstanceBadge}
-              className="size-4"
-              iconClassName={cn("size-4", props.activeProviderIconClassName)}
-              indicatorBackground={props.instanceIndicatorBackground ?? "var(--contrast-input)"}
-              badgeClassName={cn(
-                "right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3 px-0.5 text-5xs",
-                size === "xs" && "shadow-none",
-              )}
-            />
-          ) : null}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span
-                  className="min-w-0 flex-1 overflow-hidden truncate"
-                  data-chat-provider-model-picker-label="true"
-                />
-              }
-            >
-              {props.triggerLabel ?? multipleLabel ?? triggerTitle}
-            </TooltipTrigger>
-            <TooltipPopup side="top">{triggerTooltipContent}</TooltipPopup>
-          </Tooltip>
-          {selectedModel?.isUnavailable && !selectedEntries && props.triggerLabel === undefined ? (
-            <Badge variant="outline" size="sm">
-              Unavailable
-            </Badge>
-          ) : null}
-        </span>
-        <span aria-hidden="true" className="flex items-center">
-          <ComposerControlChevron size={size} />
-        </span>
-      </PopoverTrigger>
-      <PopoverPopup
-        {...(props.isComposerOwned ? composerFloatingLayerProps : {})}
-        align="start"
-        className="before:hidden"
-        padding="none"
-        touchBackdrop
-      >
-        <ModelPickerContent
-          environmentId={props.environmentId}
-          activeInstanceId={activeInstanceId}
-          model={props.model}
-          {...(props.selectedModels !== undefined ? { selectedModels: props.selectedModels } : {})}
-          {...(props.onToggleModel
-            ? {
-                onToggleModel: (instanceId: ProviderInstanceId, model: string) => {
-                  if (!props.disabled) props.onToggleModel?.(instanceId, model);
-                },
-              }
-            : {})}
-          lockedProvider={props.lockedProvider}
-          lockedContinuationGroupKey={props.lockedContinuationGroupKey ?? null}
-          instanceEntries={props.instanceEntries}
-          {...(props.keybindings ? { keybindings: props.keybindings } : {})}
-          modelOptionsByInstance={props.modelOptionsByInstance}
-          terminalOpen={props.terminalOpen ?? false}
-          onRequestClose={() => setIsMenuOpen(false)}
-          {...(props.onOpenProviderSetup ? { onOpenProviderSetup: props.onOpenProviderSetup } : {})}
-          getModelDisabledReason={(instanceId, model) =>
-            props.disabled
-              ? "Model picker is disabled"
-              : (props.getModelDisabledReason?.(instanceId, model) ?? null)
+        </Suspense>
+      ) : null}
+      <Popover
+        open={isMenuOpen}
+        onOpenChange={(open) => {
+          if (props.disabled) {
+            setIsMenuOpen(false);
+            return;
           }
-          onInstanceModelChange={handleInstanceModelChange}
-        />
-        {props.selectedModels === undefined ? (
-          <ChatGptSharingControl provider={activeEntry?.snapshot ?? null} />
-        ) : null}
-      </PopoverPopup>
-    </Popover>
+          setIsMenuOpen(open);
+        }}
+      >
+        <PopoverTrigger
+          render={
+            <ComposerControl
+              aria-label={props.triggerAriaLabel ?? allModelNames}
+              size={size}
+              data-chat-provider-model-picker="true"
+              className={cn(
+                "min-w-0 shrink justify-between whitespace-nowrap",
+                props.compact
+                  ? "max-w-42 shrink-0"
+                  : !props.isComposerOwned && "max-w-48 sm:max-w-56",
+                props.triggerClassName,
+              )}
+              disabled={props.disabled}
+            />
+          }
+        >
+          <span
+            className={cn("flex min-w-0 flex-1 items-center", size === "xs" ? "gap-1" : "gap-1.5")}
+          >
+            {selectedEntries && props.triggerLabel === undefined ? (
+              <span className="flex shrink-0 items-center -space-x-1" aria-hidden="true">
+                {selectedEntries
+                  .slice(0, 3)
+                  .map((selection) =>
+                    selection.entry ? (
+                      <ProviderInstanceIcon
+                        key={`${selection.instanceId}:${selection.model}`}
+                        driverKind={selection.entry.driverKind}
+                        displayName={selection.entry.displayName}
+                        accentColor={selection.entry.accentColor}
+                        className="size-4 rounded-full bg-(--chat-composer-glass-surface,var(--background)) ring-2 ring-(--chat-composer-glass-surface,var(--background))"
+                        iconClassName="size-4"
+                      />
+                    ) : null,
+                  )}
+                {selectedEntries.length > 3 ? (
+                  <span className="relative z-30 flex size-4 items-center justify-center rounded-full bg-(--chat-composer-glass-surface,var(--background)) text-3xs ring-2 ring-(--chat-composer-glass-surface,var(--background))">
+                    +{selectedEntries.length - 3}
+                  </span>
+                ) : null}
+              </span>
+            ) : activeEntry && props.triggerLabel === undefined ? (
+              <ProviderInstanceIcon
+                driverKind={activeEntry.driverKind}
+                displayName={activeEntry.displayName}
+                accentColor={activeEntry.accentColor}
+                acpRegistryAgentId={activeEntry.acpRegistryAgentId}
+                acpRegistryIconUrl={activeEntry.acpRegistryIconUrl}
+                showBadge={showInstanceBadge}
+                className="size-4"
+                iconClassName={cn("size-4", props.activeProviderIconClassName)}
+                indicatorBackground={props.instanceIndicatorBackground ?? "var(--contrast-input)"}
+                badgeClassName={cn(
+                  "right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3 px-0.5 text-5xs",
+                  size === "xs" && "shadow-none",
+                )}
+              />
+            ) : null}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    className="min-w-0 flex-1 overflow-hidden truncate"
+                    data-chat-provider-model-picker-label="true"
+                  />
+                }
+              >
+                {props.triggerLabel ?? multipleLabel ?? triggerTitle}
+              </TooltipTrigger>
+              <TooltipPopup side="top">{triggerTooltipContent}</TooltipPopup>
+            </Tooltip>
+            {selectedModel?.isUnavailable &&
+            !selectedEntries &&
+            props.triggerLabel === undefined ? (
+              <Badge variant="outline" size="sm">
+                Unavailable
+              </Badge>
+            ) : null}
+          </span>
+          <span aria-hidden="true" className="flex items-center">
+            <ComposerControlChevron size={size} />
+          </span>
+        </PopoverTrigger>
+        <PopoverPopup
+          {...(props.isComposerOwned ? composerFloatingLayerProps : {})}
+          align="start"
+          className="before:hidden"
+          padding="none"
+          touchBackdrop
+        >
+          <ModelPickerContent
+            environmentId={props.environmentId}
+            activeInstanceId={activeInstanceId}
+            model={props.model}
+            {...(props.selectedModels !== undefined
+              ? { selectedModels: props.selectedModels }
+              : {})}
+            {...(props.onToggleModel
+              ? {
+                  onToggleModel: (instanceId: ProviderInstanceId, model: string) => {
+                    if (!props.disabled) props.onToggleModel?.(instanceId, model);
+                  },
+                }
+              : {})}
+            lockedProvider={props.lockedProvider}
+            lockedContinuationGroupKey={props.lockedContinuationGroupKey ?? null}
+            instanceEntries={props.instanceEntries}
+            {...(props.keybindings ? { keybindings: props.keybindings } : {})}
+            modelOptionsByInstance={props.modelOptionsByInstance}
+            terminalOpen={props.terminalOpen ?? false}
+            onRequestClose={() => setIsMenuOpen(false)}
+            {...(props.onOpenProviderSetup
+              ? { onOpenProviderSetup: props.onOpenProviderSetup }
+              : {})}
+            getModelDisabledReason={(instanceId, model) =>
+              props.disabled
+                ? "Model picker is disabled"
+                : (props.getModelDisabledReason?.(instanceId, model) ?? null)
+            }
+            onInstanceModelChange={handleInstanceModelChange}
+          />
+          {props.selectedModels === undefined ? (
+            <ChatGptSharingControl provider={activeEntry?.snapshot ?? null} />
+          ) : null}
+          {props.environmentId && canAddAccount ? (
+            <div className="border-t border-border p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={props.disabled}
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setAddingAccount(true);
+                }}
+              >
+                Add account
+              </Button>
+            </div>
+          ) : null}
+        </PopoverPopup>
+      </Popover>
+    </>
   );
 });
