@@ -96,6 +96,7 @@ import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { AddProviderInstanceDialog } from "./AddProviderInstanceDialog";
+import { AddAgentAccountDialog } from "./AddAgentAccountDialog";
 import { ExpandableText } from "./ExpandableText";
 import { ProviderInstanceCard } from "./ProviderInstanceCard";
 import { UsageProviderSettings } from "./UsageProviderSettings";
@@ -594,6 +595,7 @@ export function EnvironmentProviderSettings({
   });
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
   const [isAddInstanceDialogOpen, setIsAddInstanceDialogOpen] = useState(false);
+  const [isAddAccountDialogOpen, setIsAddAccountDialogOpen] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<ProviderInstanceId | null>(
     targetInstanceId ?? null,
   );
@@ -1001,6 +1003,11 @@ export function EnvironmentProviderSettings({
         }
         headerAction={
           <div className="flex min-w-0 items-center gap-2">
+            {!readOnly ? (
+              <Button variant="outline" size="sm" onClick={() => setIsAddAccountDialogOpen(true)}>
+                Add account
+              </Button>
+            ) : null}
             <ProviderUpdatesAction />
             <Tooltip>
               <TooltipTrigger
@@ -1170,6 +1177,13 @@ export function EnvironmentProviderSettings({
         />
       </SettingsSection>
 
+      {isAddAccountDialogOpen && !readOnly ? (
+        <AddAgentAccountDialog
+          environmentId={environmentId}
+          environmentLabel={environmentLabel}
+          onClose={() => setIsAddAccountDialogOpen(false)}
+        />
+      ) : null}
       {isAddInstanceDialogOpen && !readOnly ? (
         <AddProviderInstanceDialog
           open

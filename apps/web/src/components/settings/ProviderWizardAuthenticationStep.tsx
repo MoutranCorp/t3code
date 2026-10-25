@@ -1,8 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import type { EnvironmentId, ProviderInstanceId } from "@t3tools/contracts";
 
 import { useEnvironmentQuery } from "../../state/query";
 import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { WizardFooter, WizardPanel } from "../ui/wizard";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
@@ -14,11 +16,13 @@ export function ProviderWizardAuthenticationStep({
   environmentLabel,
   instanceId,
   onFinish,
+  autoStart = false,
 }: {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string;
   readonly instanceId: ProviderInstanceId;
   readonly onFinish: () => void;
+  readonly autoStart?: boolean;
 }) {
   const providers =
     useAtomValue(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS;
@@ -34,6 +38,14 @@ export function ProviderWizardAuthenticationStep({
     (provider?.auth.status === "unknown" && auth?.phase === "succeeded");
   const isDiscovering = !signedIn && !query.error && auth?.methods === undefined;
   const canAuthenticate = (auth?.methods?.length ?? 0) > 0;
+  const started = useRef(false);
+  const start = useAtomCommand(serverEnvironment.startProviderAuth);
+  const startSignIn = useEffectEvent(() => start({ environmentId, input: { instanceId } }));
+  useEffect(() => {
+    if (!autoStart || started.current || !canAuthenticate || signedIn || active) return;
+    started.current = true;
+    void startSignIn();
+  }, [autoStart, canAuthenticate, signedIn, active]);
 
   return (
     <>

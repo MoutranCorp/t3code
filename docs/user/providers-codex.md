@@ -27,7 +27,9 @@ covers installation and custom configuration.
 
 ## Use multiple accounts
 
-Add another ChatGPT account in **Settings → Providers**, then select the account
+Choose **Add account** in the chat's model picker or **Settings → Providers**,
+select **Codex / ChatGPT**, name the account, and complete sign-in. Repeat to add
+as many accounts as you need. Then select the account
 from the thread's model picker. Compatible accounts can continue the same thread.
 Connecting accounts through T3 Code leaves your CLI login unchanged.
 
