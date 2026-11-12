@@ -199,7 +199,9 @@ function RootRouteBranch() {
   const appShell = (
     <CommandPalette>
       {/* Setup starts with an empty workspace, so the Welcome page has no thread list. */}
-      <AppSidebarLayout showSidebar={!isWelcome && pathname !== "/home"}>
+      <AppSidebarLayout
+        showSidebar={!isWelcome && pathname !== "/home" && !pathname.startsWith("/project/")}
+      >
         <Outlet />
       </AppSidebarLayout>
     </CommandPalette>

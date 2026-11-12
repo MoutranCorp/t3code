@@ -59,6 +59,8 @@ export function resolveProjectIconGlyph(
       return { kind: "monogram", text: projectIcon.text, color: projectIcon.color };
     case "lucide":
       return { kind: "monogram", text: projectMonogram(projectTitle), color: projectIcon.color };
+    // Drawn icons are not rendered here yet; the favicon or monogram stands in.
+    case "svg":
     case undefined:
       return null;
   }

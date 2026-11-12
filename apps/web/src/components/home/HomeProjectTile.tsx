@@ -1,19 +1,21 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAtomValue } from "@effect/atom-react";
+import { generatedProjectIconSvg } from "@t3tools/shared/generatedProjectIcon";
 import { isProjectFaviconFallbackUrl } from "@t3tools/shared/projectFavicon";
 import { FolderCodeIcon, PlusIcon } from "lucide-react";
 import { createElement, lazy, memo, Suspense, type CSSProperties, type MouseEvent } from "react";
 
 import { openCommandPalette } from "../../commandPaletteBus";
 import { cn } from "../../lib/utils";
-import { deriveProjectIdentity } from "../../projectIdentity";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { projectFaviconUrlAtom } from "../../state/assets";
 import { ProjectFavicon } from "../ProjectFavicon";
+import { ProjectIconSvgImage } from "../ProjectIconSvgImage";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { formatHomeBadgeCount, homeProjectAccessibleName, homeTileTint } from "./homeScreen.logic";
+import { useProjectIconGenerating } from "./useProjectIconActions";
 
 interface HomeProjectTileProps {
   readonly project: SidebarProjectSnapshot;
@@ -71,7 +73,9 @@ function MonogramGlyph(props: { readonly text: string }) {
   );
 }
 
-/** A repo favicon keeps its own colours; without one the name's monogram stands in. */
+const DRAWN_GLYPH_CLASS = "size-[70%] drop-shadow-xs";
+
+/** A repo favicon keeps its own colours; without one a glyph drawn from the name stands in. */
 function AutomaticGlyph(props: { readonly project: SidebarProjectSnapshot }) {
   const { project } = props;
   const src = useAtomValue(
@@ -84,12 +88,20 @@ function AutomaticGlyph(props: { readonly project: SidebarProjectSnapshot }) {
   if (src && !isProjectFaviconFallbackUrl(src)) {
     return <ProjectFavicon project={project} className="size-[56%]" />;
   }
-  return <MonogramGlyph text={deriveProjectIdentity(project.title).monogram} />;
+  return (
+    <ProjectIconSvgImage
+      svg={generatedProjectIconSvg(project.title)}
+      className={DRAWN_GLYPH_CLASS}
+    />
+  );
 }
 
 function TileGlyph(props: { readonly project: SidebarProjectSnapshot; readonly size: TileSize }) {
   const icon = props.project.projectIcon;
   if (icon?.kind === "monogram") return <MonogramGlyph text={icon.text} />;
+  if (icon?.kind === "svg") {
+    return <ProjectIconSvgImage svg={icon.svg} className={DRAWN_GLYPH_CLASS} />;
+  }
   if (icon?.kind === "lucide") {
     return (
       <Suspense fallback={<FolderCodeIcon aria-hidden className="size-1/2" />}>
@@ -122,10 +134,11 @@ function HomeProjectIcon(props: {
   readonly working: boolean;
 }) {
   const { hue, chroma } = homeTileTint(props.project);
+  const generating = useProjectIconGenerating(props.project.projectKey);
   return (
     <span
       className={cn(
-        "relative flex shrink-0 items-center justify-center bg-linear-to-br from-(--home-tile-from) to-(--home-tile-to) text-white shadow-md shadow-black/20 ring-1 ring-white/15 ring-inset motion-safe:transition-[scale,filter] motion-safe:duration-150 group-hover/home-tile:scale-[1.04] group-hover/home-tile:brightness-110 [&>svg]:drop-shadow-xs",
+        "relative flex shrink-0 items-center justify-center bg-linear-to-br from-(--home-tile-from) to-(--home-tile-to) text-white shadow-md shadow-black/20 ring-1 ring-white/15 ring-inset motion-safe:transition-[scale,filter] motion-safe:duration-150 group-hover/home-tile:scale-[1.04] group-hover/home-tile:brightness-110 [&_svg]:drop-shadow-xs",
         props.size === "grid"
           ? "size-20 rounded-2xl sm:size-24 sm:rounded-3xl"
           : "size-15 rounded-2xl",
@@ -138,7 +151,16 @@ function HomeProjectIcon(props: {
         } as CSSProperties
       }
     >
-      <TileGlyph project={props.project} size={props.size} />
+      <span
+        className={cn("flex size-full items-center justify-center", generating && "opacity-40")}
+      >
+        <TileGlyph project={props.project} size={props.size} />
+      </span>
+      {generating && props.size === "grid" ? (
+        <span className="absolute inset-x-0 bottom-2 text-center text-3xs font-medium text-white">
+          Generating…
+        </span>
+      ) : null}
       {props.working ? (
         <span
           aria-hidden

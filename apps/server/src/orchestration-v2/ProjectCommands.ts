@@ -9,6 +9,7 @@ import {
   SCRIPT_RUN_COMMAND_PATTERN,
   type ThreadEnvMode,
 } from "@t3tools/contracts";
+import { sanitizeProjectIconSvg } from "@t3tools/shared/projectIconSvg";
 import * as DateTime from "effect/DateTime";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
@@ -178,6 +179,12 @@ export function planProjectCommand(input: {
       ) {
         return invariant("Project monograms must contain at most two characters.");
       }
+      let projectIcon = command.projectIcon;
+      if (projectIcon?.kind === "svg") {
+        const svg = sanitizeProjectIconSvg(projectIcon.svg);
+        if (svg === null) return invariant("The project icon is not a drawing T3 Code can show.");
+        projectIcon = { kind: "svg", svg };
+      }
       if (command.scripts !== undefined) {
         // Allow editing or removing persisted invalid script ids, while rejecting new invalid ids.
         const existingIds = new Set(project.scripts.map((script) => script.id));
@@ -208,7 +215,7 @@ export function planProjectCommand(input: {
             : { defaultThreadEnvMode: command.defaultThreadEnvMode }),
           ...(command.autoPull === undefined ? {} : { autoPull: command.autoPull }),
           ...(command.faviconPath === undefined ? {} : { faviconPath: command.faviconPath }),
-          ...(command.projectIcon === undefined ? {} : { projectIcon: command.projectIcon }),
+          ...(projectIcon === undefined ? {} : { projectIcon }),
           ...(command.scripts === undefined ? {} : { scripts: command.scripts }),
           // Repeating a pin or archive keeps the original time.
           ...(command.pinned === undefined

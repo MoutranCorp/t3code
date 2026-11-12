@@ -94,6 +94,12 @@ const ProjectMonogramIcon = Schema.Struct({
   text: ProjectMonogramText,
   color: ProjectIconColor,
 });
+export const PROJECT_ICON_SVG_MAX_LENGTH = 8 * 1024;
+// Drawn by a model or an agent; the server sanitizes it before storing.
+const ProjectSvgIcon = Schema.Struct({
+  kind: Schema.Literal("svg"),
+  svg: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_ICON_SVG_MAX_LENGTH)),
+});
 export const ProjectFaviconPath = TrimmedNonEmptyString.check(
   Schema.isMaxLength(1024),
   Schema.isPattern(/\.(?:avif|gif|icns|ico|jpe?g|png|svg|webp)$/i),
@@ -104,6 +110,7 @@ export const ProjectIconOverride = Schema.Union([
   ProjectLucideIcon,
   ProjectEmojiIcon,
   ProjectMonogramIcon,
+  ProjectSvgIcon,
 ]);
 export type ProjectIconOverride = typeof ProjectIconOverride.Type;
 
@@ -116,6 +123,7 @@ const projectIconMembers = [
   ProjectLucideIconWithLegacyMonogram,
   ProjectEmojiIcon,
   ProjectMonogramIcon,
+  ProjectSvgIcon,
 ] as const;
 type ProjectIconMember = (typeof projectIconMembers)[number]["Type"];
 
@@ -523,6 +531,9 @@ export const ProjectEnsureScratchResult = Schema.Struct({
   projectId: ProjectId,
 });
 export type ProjectEnsureScratchResult = typeof ProjectEnsureScratchResult.Type;
+
+export const ProjectGenerateIconInput = Schema.Struct({ projectId: ProjectId });
+export type ProjectGenerateIconInput = typeof ProjectGenerateIconInput.Type;
 
 export const ProjectCreateNewInput = Schema.Struct({
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(200)),

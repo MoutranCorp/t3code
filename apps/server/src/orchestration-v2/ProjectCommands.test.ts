@@ -79,6 +79,28 @@ describe("planProjectCommand", () => {
     );
   });
 
+  it("stores a drawn icon only after sanitizing it", () => {
+    const setIcon = (svg: string) =>
+      plan(
+        {
+          type: "project.meta.update",
+          commandId: CommandId.make("cmd-svg-icon"),
+          projectId,
+          projectIcon: { kind: "svg", svg },
+        },
+        { project: row() },
+      );
+    assert.deepEqual(
+      payloadOf(setIcon('<svg viewBox="0 0 64 64" onload="x()"><circle r="4"/><script/></svg>'))
+        .projectIcon,
+      {
+        kind: "svg",
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle r="4"/></svg>',
+      },
+    );
+    assert.equal(failureOf(setIcon("<div/>"))._tag, "ProjectCommandInvariantError");
+  });
+
   it("keeps the first pin and archive time, and clears both on undo", () => {
     const earlier = "2025-12-01T00:00:00.000Z";
     const update = (project: ProjectRow, change: { pinned?: boolean; archived?: boolean }) =>

@@ -10,6 +10,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { projectFaviconUrlAtom } from "../state/assets";
 import { deriveProjectIdentity } from "../projectIdentity";
 import { projectIconColorClassName } from "../projectIconColors";
+import { ProjectIconSvgImage } from "./ProjectIconSvgImage";
 import { ProjectMonogram } from "./ProjectMonogram";
 import { cn } from "~/lib/utils";
 
@@ -71,6 +72,21 @@ export function ProjectFavicon(input: {
             className={cn("size-full", colorClassName)}
           />
         </Suspense>
+      </span>
+    );
+  }
+  if (project.projectIcon?.kind === "svg") {
+    return (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "relative inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-[25%]",
+          projectIconColorClassName(deriveProjectIdentity(project.title).color),
+          input.className,
+        )}
+      >
+        <span className="absolute inset-0 bg-current" />
+        <ProjectIconSvgImage svg={project.projectIcon.svg} className="relative size-[85%]" />
       </span>
     );
   }

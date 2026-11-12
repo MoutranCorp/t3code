@@ -18,6 +18,7 @@ import * as AgentSessionScanner from "../project/AgentSessionScanner.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
+import * as ProjectIconGeneration from "../project/ProjectIconGeneration.ts";
 import * as ScratchThreadPromotion from "../project/ScratchThreadPromotion.ts";
 import * as CheckpointCaptureService from "./CheckpointCaptureService.ts";
 import * as CheckpointService from "./CheckpointService.ts";
@@ -319,13 +320,12 @@ const layerProviderContinuationWorkerProvided = ProviderContinuationService.laye
     ),
   ),
 );
+const layerTextGenerationProvided = TextGeneration.layer.pipe(
+  Layer.provide(ProviderInstallationGate.layer),
+);
 const layerThreadTitleRegenerationProvided = ThreadTitleRegenerationService.layer.pipe(
   Layer.provide(
-    Layer.mergeAll(
-      layerThreadManagementProvided,
-      ProjectStore.layer,
-      TextGeneration.layer.pipe(Layer.provide(ProviderInstallationGate.layer)),
-    ),
+    Layer.mergeAll(layerThreadManagementProvided, ProjectStore.layer, layerTextGenerationProvided),
   ),
 );
 const layerEffectExecutorProvided = EffectWorker.layerExecutor.pipe(
@@ -388,6 +388,9 @@ export const layerProduction = Layer.mergeAll(
   layer.pipe(Layer.provide(layerProjectService)),
   layerProjectService,
   layerManagedProjectFoldersProvided,
+  ProjectIconGeneration.layer.pipe(
+    Layer.provide(Layer.merge(layerProjectService, layerTextGenerationProvided)),
+  ),
   layerThreadLaunchProvided,
   layerScheduledTaskProvided,
   layerScratchThreadPromotionProvided,

@@ -10,6 +10,7 @@ import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
   buildPrContentPrompt,
+  buildProjectIconPrompt,
   buildReviewGuidePrompt,
   buildThreadTitlePrompt,
 } from "./textGenerationPrompts.ts";
@@ -194,6 +195,17 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     });
   });
 
+  const generateProjectIcon: ProviderTextGeneration["generateProjectIcon"] = Effect.fn(
+    `${name}.generateProjectIcon`,
+  )(function* (input) {
+    return yield* run({
+      operation: "generateProjectIcon",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      ...buildProjectIconPrompt({ projectTitle: input.projectTitle, context: input.context }),
+    });
+  });
+
   return {
     generateCommitMessage,
     generatePrContent,
@@ -201,5 +213,6 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     generateThreadTitle,
     generateReviewGuide,
     generateTranscriptionPostProcessing,
+    generateProjectIcon,
   } satisfies ProviderTextGeneration;
 }

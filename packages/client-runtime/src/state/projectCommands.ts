@@ -201,6 +201,14 @@ export function createProjectEnvironmentAtoms<R, E>(
       scheduler: projectScheduler,
       concurrency: { mode: "serial", key: ({ environmentId }) => environmentId },
     }),
+    generateIcon: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:projects:generate-icon",
+      tag: WS_METHODS.projectsGenerateIcon,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.projectId}`,
+      },
+    }),
     createFromThread: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:projects:create-from-thread",
       tag: WS_METHODS.projectsCreateFromThread,

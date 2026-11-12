@@ -50,7 +50,8 @@ type TextGenerationOp =
   | "generateBranchName"
   | "generateThreadTitle"
   | "generateReviewGuide"
-  | "generateTranscriptionPostProcessing";
+  | "generateTranscriptionPostProcessing"
+  | "generateProjectIcon";
 
 const resolveInstance = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
@@ -197,6 +198,14 @@ export const make = Effect.gen(function* () {
         null,
         (service, modelSelection) =>
           service.generateTranscriptionPostProcessing({ ...input, modelSelection }),
+      );
+    }),
+    generateProjectIcon: Effect.fn("TextGeneration.generateProjectIcon")(function (input) {
+      return generate(
+        "generateProjectIcon",
+        input.modelSelection,
+        input.projectId,
+        (service, modelSelection) => service.generateProjectIcon({ ...input, modelSelection }),
       );
     }),
     generateThreadTitle: Effect.fn("TextGeneration.generateThreadTitle")(function (input) {

@@ -73,14 +73,18 @@ import {
   summarizeHomeBadges,
 } from "./homeScreen.logic";
 import { useAppRunningThreadKeys } from "./useAppRunningThreadKeys";
+import { useProjectIconActions } from "./useProjectIconActions";
 
 type ProjectMenuAction =
+  | "open-project"
   | "new-thread"
   | "open-latest"
   | "run-app"
   | "pin"
   | "unpin"
   | "open-folder"
+  | "generate-icon"
+  | "reset-icon"
   | "project-settings";
 
 // Space picks a tile up so Enter keeps opening it.
@@ -139,6 +143,7 @@ export function HomeScreen() {
   const groupingSettings = useClientSettings(selectProjectGroupingSettings);
   const { canPinProjectGroup, setProjectGroupPinned } = useProjectPin();
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
+  const projectIcon = useProjectIconActions();
   const [query, setQuery] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -178,7 +183,10 @@ export function HomeScreen() {
   };
 
   const handleOpen = useStableCallback((project: SidebarProjectSnapshot) => {
-    void openProject(project).catch(reportOpenFailure);
+    void navigate({
+      to: "/project/$environmentId/$projectId",
+      params: { environmentId: project.environmentId, projectId: project.id },
+    }).catch(reportOpenFailure);
   });
 
   const handleContextMenu = useStableCallback(
@@ -192,6 +200,7 @@ export function HomeScreen() {
         const clicked = await settlePromise(() =>
           api.contextMenu.show<ProjectMenuAction>(
             [
+              { id: "open-project", label: "Open project", icon: "folder-tree" },
               { id: "new-thread", label: "New thread", icon: "message-square-plus" },
               {
                 id: "open-latest",
@@ -212,6 +221,14 @@ export function HomeScreen() {
               ...(canOpenFolder(project.environmentId)
                 ? [{ id: "open-folder" as const, label: "Open folder", icon: "folder" }]
                 : []),
+              ...(readEnvironmentScope(project.environmentId, AuthOrchestrationOperateScope)
+                ? [
+                    { id: "generate-icon" as const, label: "Generate icon", separatorBefore: true },
+                    ...(project.projectIcon
+                      ? [{ id: "reset-icon" as const, label: "Reset icon" }]
+                      : []),
+                  ]
+                : []),
               {
                 id: "project-settings",
                 label: "Project settings",
@@ -224,13 +241,16 @@ export function HomeScreen() {
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
         switch (clicked.value) {
+          case "open-project":
+            handleOpen(project);
+            return;
           case "new-thread":
             void handleNewThread(scopeProjectRef(project.environmentId, project.id)).catch(
               reportOpenFailure,
             );
             return;
           case "open-latest":
-            handleOpen(project);
+            void openProject(project).catch(reportOpenFailure);
             return;
           case "run-app":
             void openProject(project, { run: true }).catch(reportOpenFailure);
@@ -244,6 +264,12 @@ export function HomeScreen() {
               environmentId: project.environmentId,
               input: { cwd: project.workspaceRoot, editor: "file-manager" },
             });
+            return;
+          case "generate-icon":
+            void projectIcon.generate(project);
+            return;
+          case "reset-icon":
+            void projectIcon.reset(project);
             return;
           case "project-settings":
             void navigate({

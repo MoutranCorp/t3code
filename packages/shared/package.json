@@ -47,6 +47,14 @@
       "types": "./src/projectFavicon.ts",
       "import": "./src/projectFavicon.ts"
     },
+    "./generatedProjectIcon": {
+      "types": "./src/generatedProjectIcon.ts",
+      "import": "./src/generatedProjectIcon.ts"
+    },
+    "./projectIconSvg": {
+      "types": "./src/projectIconSvg.ts",
+      "import": "./src/projectIconSvg.ts"
+    },
     "./mobileSourceMaps": {
       "types": "./src/mobileSourceMaps.ts",
       "import": "./src/mobileSourceMaps.ts"

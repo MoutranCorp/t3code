@@ -114,6 +114,19 @@ export interface TranscriptionPostProcessingResult {
   transcription: string;
 }
 
+export interface ProjectIconGenerationInput {
+  cwd: string;
+  projectTitle: string;
+  context: string;
+  modelSelection: ModelSelection;
+  projectId?: ProjectId | null | undefined;
+}
+
+/** Untrusted model output; callers sanitize it before use. */
+export interface ProjectIconGenerationResult {
+  svg: string;
+}
+
 export interface ProviderTextGeneration {
   readonly generateTranscriptionPostProcessing: (
     input: TranscriptionPostProcessingInput,
@@ -138,4 +151,8 @@ export interface ProviderTextGeneration {
   readonly generateReviewGuide: (
     input: ReviewGuideGenerationInput,
   ) => Effect.Effect<ReviewGuideGenerationResult, TextGenerationError>;
+
+  readonly generateProjectIcon: (
+    input: ProjectIconGenerationInput,
+  ) => Effect.Effect<ProjectIconGenerationResult, TextGenerationError>;
 }

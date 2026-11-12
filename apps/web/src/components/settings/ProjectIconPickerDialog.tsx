@@ -85,12 +85,14 @@ function ProjectIconPickerBody({
   readonly onSelect: (icon: ProjectIconOverride) => void;
 }) {
   const automatic = deriveProjectIdentity(projectName);
-  const [mode, setMode] = useState<ProjectIconOverride["kind"]>(current?.kind ?? "lucide");
+  const [mode, setMode] = useState<"lucide" | "emoji" | "monogram">(
+    current?.kind === "svg" ? "lucide" : (current?.kind ?? "lucide"),
+  );
   const [iconName, setIconName] = useState<string>(
     current?.kind === "lucide" ? current.name : DEFAULT_ICON,
   );
   const [color, setColor] = useState<ProjectIconColor>(
-    current && current.kind !== "emoji" ? current.color : automatic.color,
+    current?.kind === "lucide" || current?.kind === "monogram" ? current.color : automatic.color,
   );
   const [letters, setLetters] = useState(
     current?.kind === "monogram" ? current.text : automatic.monogram,
