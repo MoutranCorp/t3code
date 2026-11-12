@@ -1,7 +1,9 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import { ClaudeSettings, ProviderInstanceId, type ProviderAuthState } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -57,7 +59,7 @@ const makeHarness = Effect.fn("ClaudeAccountAuth.testHarness")(function* (verifi
   };
 });
 
-it.layer(NodeServices.layer)("Claude account sign-in", (it) => {
+it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Claude account sign-in", (it) => {
   it.effect("uses isolated credentials and verifies a successful login", () =>
     Effect.gen(function* () {
       const h = yield* makeHarness();
