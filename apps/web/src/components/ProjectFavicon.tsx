@@ -1,4 +1,5 @@
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
+import { generatedProjectIconSvg } from "@t3tools/shared/generatedProjectIcon";
 import {
   getProjectFaviconResourceKey,
   isProjectFaviconFallbackUrl,
@@ -77,20 +78,35 @@ export function ProjectFavicon(input: {
   }
   if (project.projectIcon?.kind === "svg") {
     return (
-      <span
-        aria-hidden="true"
-        className={cn(
-          "relative inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-[25%]",
-          projectIconColorClassName(deriveProjectIdentity(project.title).color),
-          input.className,
-        )}
-      >
-        <span className="absolute inset-0 bg-current" />
-        <ProjectIconSvgImage svg={project.projectIcon.svg} className="relative size-[85%]" />
-      </span>
+      <ProjectGlyphTile
+        svg={project.projectIcon.svg}
+        projectName={project.title}
+        className={input.className}
+      />
     );
   }
   return <AutomaticProjectFavicon {...input} />;
+}
+
+/** A white glyph on the project's colour, as Home draws it. */
+function ProjectGlyphTile(props: {
+  readonly svg: string;
+  readonly projectName: string;
+  readonly className?: string | undefined;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "relative inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-[25%]",
+        projectIconColorClassName(deriveProjectIdentity(props.projectName).color),
+        props.className,
+      )}
+    >
+      <span className="absolute inset-0 bg-current" />
+      <ProjectIconSvgImage svg={props.svg} className="relative size-[85%]" />
+    </span>
+  );
 }
 
 function AutomaticProjectFavicon(input: Parameters<typeof ProjectFavicon>[0]) {
@@ -143,9 +159,12 @@ function ProjectFaviconFallback({
   readonly projectName?: string | undefined;
 }) {
   if (projectName && projectName.trim().length > 0) {
-    const identity = deriveProjectIdentity(projectName);
     return (
-      <ProjectMonogram text={identity.monogram} color={identity.color} className={className} />
+      <ProjectGlyphTile
+        svg={generatedProjectIconSvg(projectName)}
+        projectName={projectName}
+        className={className}
+      />
     );
   }
 

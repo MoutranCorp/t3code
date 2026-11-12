@@ -28,6 +28,17 @@ function fnv1a(text: string): number {
   return hash >>> 0;
 }
 
+/** Murmur3's finalizer: every input bit flips each output bit with even odds. */
+function fmix32(value: number): number {
+  let hash = value >>> 0;
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
+  return hash >>> 0;
+}
+
 function mulberry32(seed: number): Random {
   let state = seed;
   return () => {
@@ -261,9 +272,18 @@ const COMPOSITIONS = [
   halves,
 ] as const;
 
+function seedHash(seed: string): number {
+  return fmix32(fnv1a(seed.normalize("NFKC").trim().toLocaleLowerCase("en-US") || "project"));
+}
+
+/** Which composition a seed draws; picked from the hash's high bits, apart from its shape. */
+export function generatedProjectIconComposition(seed: string): number {
+  return Math.floor((fmix32(seedHash(seed) ^ 0x9e3779b9) / 4294967296) * COMPOSITIONS.length);
+}
+
 /** The same seed always draws the same glyph. */
 export function generatedProjectIconSvg(seed: string): string {
-  const hash = fnv1a(seed.normalize("NFKC").trim().toLocaleLowerCase("en-US") || "project");
-  const compose = COMPOSITIONS[hash % COMPOSITIONS.length]!;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${compose(mulberry32(hash))}</svg>`;
+  const compose = COMPOSITIONS[generatedProjectIconComposition(seed)]!;
+  const shape = mulberry32(fmix32(seedHash(seed) + 0x7f4a7c15));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${compose(shape)}</svg>`;
 }

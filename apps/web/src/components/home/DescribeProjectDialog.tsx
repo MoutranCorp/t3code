@@ -7,6 +7,7 @@ import {
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useId, useState } from "react";
 
+import { requestDraftAutoSend } from "../../draftAutoSendStore";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { newProjectId } from "../../lib/utils";
 import { useProjects, waitForProject } from "../../state/entities";
@@ -15,6 +16,7 @@ import { projectEnvironment } from "../../state/projects";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import {
   Dialog,
   DialogDescription,
@@ -45,8 +47,8 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Makes a folder and a project from a description, then opens a new thread with the
- * description waiting in the composer, on the user's default model.
+ * Makes a folder and a project from a description, then opens a new thread on the user's
+ * default model with the description as its first message, sent unless the user opts out.
  */
 export function DescribeProjectDialog(props: { readonly onClose: () => void }) {
   const id = useId();
@@ -67,6 +69,7 @@ export function DescribeProjectDialog(props: { readonly onClose: () => void }) {
   const [nameOverride, setNameOverride] = useState<string | null>(null);
   const [locationOverride, setLocationOverride] = useState<string | null>(null);
   const [browsing, setBrowsing] = useState(false);
+  const [startNow, setStartNow] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Set once the folder turned out to exist, so the next Create uses it as it is.
@@ -129,7 +132,8 @@ export function DescribeProjectDialog(props: { readonly onClose: () => void }) {
       // Drafts key on the stored project path, so wait for it before opening one.
       await waitForProject(projectRef);
       props.onClose();
-      await handleNewThread(projectRef, { prompt: description.trim() });
+      const opened = await handleNewThread(projectRef, { prompt: description.trim() });
+      if (opened && startNow) requestDraftAutoSend(opened.draftId);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -155,7 +159,7 @@ export function DescribeProjectDialog(props: { readonly onClose: () => void }) {
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
             <DialogDescription>
-              Describe it and T3 Code makes the folder, then opens a thread ready to start.
+              Describe it and T3 Code makes the folder, then starts an agent on it.
             </DialogDescription>
           </DialogHeader>
           <DialogPanel>
@@ -239,6 +243,13 @@ export function DescribeProjectDialog(props: { readonly onClose: () => void }) {
                     </p>
                   )}
                 </div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={startNow}
+                    onCheckedChange={(checked) => setStartNow(checked === true)}
+                  />
+                  Start the agent right away
+                </label>
               </>
             )}
             {error ? <p className="text-sm text-destructive-foreground">{error}</p> : null}
@@ -252,7 +263,9 @@ export function DescribeProjectDialog(props: { readonly onClose: () => void }) {
                 ? "Creating…"
                 : confirmedExisting !== null && confirmedExisting === targetPath
                   ? "Use existing folder"
-                  : "Create"}
+                  : startNow
+                    ? "Create and start"
+                    : "Create"}
             </Button>
           </DialogFooter>
         </form>

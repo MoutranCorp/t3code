@@ -15,19 +15,32 @@ import {
 } from "./HomeProjectTile";
 import { formatHomeBadgeCount, homeProjectAccessibleName } from "./homeScreen.logic";
 
-/** The folder's members as a 2×2 grid, or 3×3 once it holds more than four. */
+/** Light glass, clearly above the page in both themes; folders and their open panel share it. */
+export const HOME_GLASS_CLASS =
+  "border border-white/50 bg-white/45 shadow-md shadow-black/10 backdrop-blur-xl dark:border-white/15 dark:bg-white/10";
+
+/**
+ * The members as a 2×2 grid, or 3×3 past four, filling about 80% of the tile. Each mini
+ * keeps a real tile's corner ratio (a fifth to a quarter of its width).
+ */
 function HomeFolderGlyph(props: { readonly projects: readonly SidebarProjectSnapshot[] }) {
   const large = props.projects.length > 4;
   return (
     <span
       aria-hidden
       className={cn(
-        "grid size-full content-start p-2.5 sm:p-3",
-        large ? "grid-cols-3 gap-1" : "grid-cols-2 gap-1.5 sm:gap-2",
+        "grid size-full content-start p-2 sm:p-2.5",
+        large ? "grid-cols-3 gap-1 sm:gap-1.5" : "grid-cols-2 gap-1.5 sm:gap-2",
       )}
     >
       {props.projects.slice(0, large ? 9 : 4).map((project) => (
-        <span key={project.projectKey} className="flex aspect-square">
+        <span
+          key={project.projectKey}
+          className={cn(
+            "flex aspect-square overflow-hidden",
+            large ? "rounded-sm sm:rounded-md" : "rounded-md sm:rounded-lg",
+          )}
+        >
           <HomeProjectIcon project={project} size="mini" attention={0} working={false} />
         </span>
       ))}
@@ -87,7 +100,12 @@ export const HomeFolderTile = memo(function HomeFolderTile(props: {
           props.onContextMenu(folder, contextMenuPosition(event));
         }}
       >
-        <span className="dropdown-glass relative flex size-20 shrink-0 rounded-2xl shadow-md shadow-black/10 motion-safe:transition-[scale] motion-safe:duration-150 group-hover/home-tile:scale-[1.04] sm:size-24 sm:rounded-3xl">
+        <span
+          className={cn(
+            HOME_GLASS_CLASS,
+            "relative flex size-20 shrink-0 rounded-2xl motion-safe:transition-[scale] motion-safe:duration-150 group-hover/home-tile:scale-[1.04] sm:size-24 sm:rounded-3xl",
+          )}
+        >
           <HomeFolderGlyph projects={props.projects} />
           {props.working ? (
             <span

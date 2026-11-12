@@ -146,7 +146,7 @@ export function HomeProjectIcon(props: {
       className={cn(
         "relative flex shrink-0 items-center justify-center bg-linear-to-br from-(--home-tile-from) to-(--home-tile-to) text-white ring-1 ring-white/15 ring-inset [&_svg]:drop-shadow-xs",
         props.size === "mini"
-          ? "size-full rounded-lg shadow-xs shadow-black/20"
+          ? "size-full"
           : "shadow-md shadow-black/20 motion-safe:transition-[scale,filter] motion-safe:duration-150 group-hover/home-tile:scale-[1.04] group-hover/home-tile:brightness-110",
         props.size === "grid" && "size-20 rounded-2xl sm:size-24 sm:rounded-3xl",
         props.size === "dock" && "size-15 rounded-2xl",

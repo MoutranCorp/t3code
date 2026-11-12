@@ -276,6 +276,7 @@ import { ComposerControlsBar } from "./ComposerControlsBar";
 import { composerCommandKeyHandler } from "./composerCommandKey";
 import { usePromptSuggestion } from "./usePromptSuggestion";
 import { useFreshSessionArmed } from "./freshSessionArms";
+import { takeDraftAutoSend, useDraftAutoSendRequested } from "../../draftAutoSendStore";
 
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
   const armed = Date.now() <= deadline.current;
@@ -2165,6 +2166,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   useLayoutEffect(() => {
     submitComposerRef.current = (mode, intent) => submitComposerStable(undefined, mode, intent);
   }, [submitComposerStable]);
+  const autoSendReady =
+    useDraftAutoSendRequested(routeKind === "draft" ? draftId : null) &&
+    providerCatalogKnown &&
+    !submissionBlocked &&
+    !isSendBusy &&
+    !voiceInputActive;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sends a draft another surface asked to start, once this composer can send it
+  useEffect(() => {
+    if (autoSendReady && draftId !== null && takeDraftAutoSend(draftId)) {
+      submitComposerRef.current();
+    }
+  }, [autoSendReady, draftId]);
   useDictationSubmissionShortcut({
     enabled: voiceInputActive && !speechInput.preparing,
     formRef: composerFormRef,
