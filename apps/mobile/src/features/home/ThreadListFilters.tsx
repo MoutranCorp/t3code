@@ -14,6 +14,7 @@ export function ThreadListFilters(props: {
   readonly selectedProjectKey: string | null;
   readonly onEnvironmentChange: (environmentId: EnvironmentId | null) => void;
   readonly onProjectChange: (projectKey: string | null) => void;
+  readonly onShowProjects?: (() => void) | undefined;
   /** List padding the scroller bleeds through so pills start where row content does. */
   readonly gutter: number;
 }) {
@@ -30,6 +31,16 @@ export function ThreadListFilters(props: {
       style={{ marginHorizontal: -props.gutter, overflow: "visible" }}
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 2, paddingBottom: 10, gap: 8 }}
     >
+      {props.onShowProjects ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Show projects"
+          className="h-8 w-8 items-center justify-center"
+          onPress={props.onShowProjects}
+        >
+          <SymbolView name="square.grid.2x2" size={18} tintColorClassName="accent-icon-muted" />
+        </Pressable>
+      ) : null}
       <ListFilterMenu
         label={selectedEnvironment?.label ?? "All environments"}
         accessibilityLabel="Filter threads by environment"

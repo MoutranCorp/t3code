@@ -61,6 +61,7 @@ import {
   useRemoteEnvironmentRuntime,
 } from "../../state/use-remote-environment-registry";
 import { useKnownTerminalSessions } from "../../state/use-terminal-session";
+import { useThreadProjectRun } from "./useThreadProjectRun";
 import { uuidv4 } from "../../lib/uuid";
 import {
   isAtomCommandInterrupted,
@@ -747,7 +748,7 @@ function ThreadRouteContent(
       !selectedThreadProject?.workspaceRoot ||
       !readEnvironmentScope(selectedThread.environmentId, AuthTerminalOperateScope)
     ) {
-      return;
+      return undefined;
     }
 
     const targetTerminalId = resolveProjectScriptTerminalId({
@@ -792,7 +793,24 @@ function ThreadRouteContent(
       threadId: String(selectedThread.id),
       terminalId: targetTerminalId,
     });
+    return targetTerminalId;
   };
+  const projectScripts = selectedThreadProject
+    ? resolveProjectScripts(
+        routeEnvironmentRuntime?.serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS,
+        selectedThreadProject,
+      )
+    : [];
+  const projectRunActions = useThreadProjectRun({
+    environmentId: selectedThread?.environmentId ?? null,
+    threadId: selectedThread?.id ?? null,
+    projectId: selectedThreadProject?.id ?? null,
+    scripts: projectScripts,
+    terminalSessions: knownTerminalSessions,
+    canOperateTerminal: canOperateTerminal && Boolean(selectedThreadProject?.workspaceRoot),
+    runScript: handleRunProjectScript,
+    openTerminal: handleOpenTerminal,
+  });
   const threadGitControlProps = {
     environmentId: environmentIdRaw ?? "",
     threadId: threadId ?? "",
@@ -809,12 +827,7 @@ function ThreadRouteContent(
       Boolean(selectedThreadProject?.workspaceRoot) && (canReadTerminal || canOperateTerminal),
     canOperateTerminal,
     canOpenFiles: Boolean(selectedThreadProject?.workspaceRoot),
-    projectScripts: selectedThreadProject
-      ? resolveProjectScripts(
-          routeEnvironmentRuntime?.serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS,
-          selectedThreadProject,
-        )
-      : [],
+    projectScripts,
     terminalSessions: terminalMenuSessions,
     onOpenTerminal: handleOpenTerminal,
     onOpenNewTerminal: handleOpenNewTerminal,
@@ -979,6 +992,7 @@ function ThreadRouteContent(
                 title={selectedThread.title}
                 subtitle={headerSubtitle}
                 gitControls={threadGitControlProps}
+                runActions={projectRunActions}
                 hasThreadCwd={selectedThreadCwd !== null}
                 inspectorMode={inspectorMode}
                 onOpenFilesInspector={handleOpenFilesInspector}

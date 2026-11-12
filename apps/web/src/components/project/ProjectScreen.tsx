@@ -29,6 +29,7 @@ import { useEnvironmentScope } from "../../state/session";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { OpenInPicker } from "../chat/OpenInPicker";
 import FileBrowserPanel from "../files/FileBrowserPanel";
+import { HomeProjectIcon } from "../home/HomeProjectTile";
 import { useAppRunningThreadKeys } from "../home/useAppRunningThreadKeys";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { filterSidebarV2VisibleThreads } from "../Sidebar.logic";
@@ -173,9 +174,13 @@ export function ProjectScreen(props: {
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
             <div className="flex min-w-0 flex-1 items-center gap-4">
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border/60">
-                <ProjectFavicon project={group ?? project} className="size-8" />
-              </span>
+              {group ? (
+                <HomeProjectIcon project={group} size="dock" attention={0} working={false} />
+              ) : (
+                <span className="flex size-15 shrink-0 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border/60">
+                  <ProjectFavicon project={project} className="size-8" />
+                </span>
+              )}
               <div className="flex min-w-0 flex-col gap-0.5">
                 <h1 className="truncate text-2xl font-semibold tracking-tight text-foreground">
                   {projectName}
@@ -222,7 +227,12 @@ export function ProjectScreen(props: {
         </div>
       </header>
       {view === "overview" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 scrollbar-gutter-both">
+        // Focus that lands on the page stops here, not in the Files card search below.
+        <div
+          tabIndex={-1}
+          data-workspace-focus-default
+          className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 outline-none scrollbar-gutter-both"
+        >
           <div className="mx-auto grid w-full max-w-6xl items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div className="flex min-w-0 flex-col gap-5">
               <ProjectThreadsSection threads={threads} onNewThread={newThread} />

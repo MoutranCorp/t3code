@@ -99,7 +99,7 @@ export type ThreadGitControlsProps = ThreadGitMenuProps & {
   readonly terminalSessions: ReadonlyArray<TerminalMenuSession>;
   readonly onOpenTerminal: (terminalId?: string | null) => void;
   readonly onOpenNewTerminal: () => void;
-  readonly onRunProjectScript: (script: ProjectScript) => Promise<void>;
+  readonly onRunProjectScript: (script: ProjectScript) => Promise<unknown>;
 };
 
 function useThreadGitControlModel(props: ThreadGitMenuProps) {

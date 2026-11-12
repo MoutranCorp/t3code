@@ -17,6 +17,7 @@ import {
   type ProjectRun,
   runAwaitsPreview,
   runDetectionDirectories,
+  runPhoneAddresses,
   type RunTerminals,
   terminalOutputTail,
 } from "./projectRunControl.logic";
@@ -340,5 +341,42 @@ describe("terminalOutputTail", () => {
 
   it("is null for empty output", () => {
     expect(terminalOutputTail("\u001b[2J\r\n", 60)).toBeNull();
+  });
+});
+
+describe("runPhoneAddresses", () => {
+  const endpoint = (
+    label: string,
+    httpBaseUrl: string,
+    reachability: "loopback" | "lan" | "private-network" | "public",
+    status: "available" | "unavailable" | "unknown" = "available",
+  ) => ({ label, httpBaseUrl, reachability, status });
+  const desktopEndpoints = [
+    endpoint("This machine", "http://127.0.0.1:3773", "loopback"),
+    endpoint("Local network", "http://192.168.1.20:3773", "lan"),
+    endpoint("Tailscale IP", "http://100.101.102.103:3773", "private-network"),
+    endpoint("Tailscale HTTPS", "https://box.tail1234.ts.net", "private-network"),
+    endpoint("Custom endpoint", "http://203.0.113.9:3773", "public"),
+    endpoint("Stale", "http://10.0.0.9:3773", "lan", "unavailable"),
+  ];
+
+  it("swaps this computer's network addresses into a loopback server url", () => {
+    expect(runPhoneAddresses("http://localhost:5173/app?x=1", desktopEndpoints)).toEqual([
+      { label: "Local network", url: "http://192.168.1.20:5173/app?x=1" },
+      { label: "Tailscale IP", url: "http://100.101.102.103:5173/app?x=1" },
+    ]);
+  });
+
+  it("keeps a url this client already reaches over the network", () => {
+    expect(runPhoneAddresses("http://192.168.1.20:5173/", desktopEndpoints)).toEqual([
+      { label: "Network", url: "http://192.168.1.20:5173/" },
+    ]);
+    expect(runPhoneAddresses("http://box.tail1234.ts.net:5173/", [])).toEqual([
+      { label: "Tailscale", url: "http://box.tail1234.ts.net:5173/" },
+    ]);
+  });
+
+  it("finds nothing for a loopback server without network addresses", () => {
+    expect(runPhoneAddresses("http://localhost:5173/", desktopEndpoints.slice(0, 1))).toEqual([]);
   });
 });

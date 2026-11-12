@@ -1,14 +1,13 @@
 import { parseScopedThreadKey, scopedThreadKey } from "@t3tools/client-runtime/environment";
+import {
+  homeTileTintForColor,
+  NO_HOME_BADGES,
+  type HomeProjectBadges,
+} from "@t3tools/client-runtime/home-projects";
 import type { KnownTerminalSession } from "@t3tools/client-runtime/state/terminal";
 import { sortThreads, type ThreadSortInput } from "@t3tools/client-runtime/state/thread-sort";
-import type {
-  EnvironmentId,
-  ProjectIconColor,
-  ProjectIconOverride,
-  ScopedProjectRef,
-} from "@t3tools/contracts";
+import type { EnvironmentId, ProjectIconOverride, ScopedProjectRef } from "@t3tools/contracts";
 import type { SidebarThreadSortOrder } from "@t3tools/contracts/settings";
-import { foldSearchQuery, rankSearchItems, scoreSearchTerms } from "@t3tools/shared/paletteSearch";
 
 import { deriveProjectIdentity } from "../../projectIdentity";
 import type { SidebarThreadSummary } from "../../types";
@@ -114,56 +113,14 @@ export function planHomeReorder(
   };
 }
 
-export function homeDockProjects<T extends Pick<HomeProject, "pinned">>(
-  projects: readonly T[],
-): T[] {
-  return projects.filter((project) => project.pinned);
-}
-
-function homeSearchTerms(project: Pick<HomeProject, "displayName" | "memberProjects">): string[] {
-  return [
-    project.displayName,
-    ...project.memberProjects.flatMap((member) => [
-      member.title,
-      member.workspaceRoot,
-      ...(member.environmentLabel === null ? [] : [member.environmentLabel]),
-    ]),
-  ];
-}
-
-/** Best match first; every project when the query is empty. */
-export function searchHomeProjects<T extends Pick<HomeProject, "displayName" | "memberProjects">>(
-  projects: readonly T[],
-  query: string,
-): readonly T[] {
-  const folded = foldSearchQuery(query);
-  if (folded.length === 0) return projects;
-  return rankSearchItems(projects, (project, options) =>
-    scoreSearchTerms(folded, homeSearchTerms(project), options),
-  ).map(({ item }) => item);
-}
-
-// Approximate oklch hues of the Tailwind palette the project icon colours come from.
-const PROJECT_ICON_HUES: Record<ProjectIconColor, number> = {
-  gray: 260,
-  red: 25,
-  orange: 47,
-  amber: 70,
-  yellow: 86,
-  lime: 131,
-  green: 150,
-  emerald: 163,
-  teal: 182,
-  cyan: 215,
-  sky: 237,
-  blue: 259,
-  indigo: 277,
-  violet: 293,
-  purple: 304,
-  fuchsia: 322,
-  pink: 354,
-  rose: 16,
-};
+export {
+  formatHomeBadgeCount,
+  homeDockProjects,
+  homeProjectAccessibleName,
+  NO_HOME_BADGES,
+  searchHomeProjects,
+  type HomeProjectBadges,
+} from "@t3tools/client-runtime/home-projects";
 
 /**
  * The tile's colour: the configured icon colour, else the colour the monogram
@@ -174,25 +131,12 @@ export function homeTileTint(project: Pick<HomeProject, "title" | "projectIcon">
   readonly chroma: number;
 } {
   const icon = project.projectIcon;
-  const color =
+  return homeTileTintForColor(
     icon?.kind === "monogram" || icon?.kind === "lucide"
       ? icon.color
-      : deriveProjectIdentity(project.title).color;
-  return { hue: PROJECT_ICON_HUES[color], chroma: color === "gray" ? 0.02 : 0.15 };
+      : deriveProjectIdentity(project.title).color,
+  );
 }
-
-export interface HomeProjectBadges {
-  /** Threads waiting on the user, plus finished threads they have not opened. */
-  readonly attention: number;
-  readonly working: boolean;
-  readonly appRunning: boolean;
-}
-
-export const NO_HOME_BADGES: HomeProjectBadges = {
-  attention: 0,
-  working: false,
-  appRunning: false,
-};
 
 type HomeBadgeThread = Parameters<typeof resolveSidebarThreadStatus>[0] &
   Parameters<typeof hasUnseenCompletion>[0] &
@@ -322,19 +266,4 @@ export function latestHomeThread<
       sortOrder,
     )[0] ?? null
   );
-}
-
-export function formatHomeBadgeCount(count: number): string {
-  return count > 9 ? "9+" : String(count);
-}
-
-export function homeProjectAccessibleName(name: string, badges: HomeProjectBadges): string {
-  return [
-    name,
-    ...(badges.attention > 0
-      ? [`${badges.attention} ${badges.attention === 1 ? "needs" : "need"} attention`]
-      : []),
-    ...(badges.working ? ["working"] : []),
-    ...(badges.appRunning ? ["app running"] : []),
-  ].join(", ");
 }

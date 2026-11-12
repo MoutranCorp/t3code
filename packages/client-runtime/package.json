@@ -31,6 +31,10 @@
       "types": "./src/locales.ts",
       "default": "./src/locales.ts"
     },
+    "./home-projects": {
+      "types": "./src/homeProjects.ts",
+      "default": "./src/homeProjects.ts"
+    },
     "./model-search": {
       "types": "./src/modelSearch.ts",
       "default": "./src/modelSearch.ts"

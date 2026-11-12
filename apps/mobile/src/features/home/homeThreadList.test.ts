@@ -5,6 +5,7 @@ import type {
 import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
+import { buildHomeGridProjects } from "./homeProjectGrid.logic";
 import { buildHomeProjectScopes, findHomeProjectScope } from "./homeThreadList";
 import { makeThreadShellFixture } from "../../test-fixtures";
 import { buildThreadListV2Items } from "../threads/threadListV2";
@@ -221,5 +222,95 @@ describe("home project scopes", () => {
     expect(findHomeProjectScope(scopes, "environment-local:project-target")).toBe(targetScope);
     expect(findHomeProjectScope(scopes, "environment-local:missing")).toBeNull();
     expect(findHomeProjectScope(scopes, null)).toBeNull();
+  });
+});
+
+describe("home grid projects", () => {
+  it("badges each open project tile from its listed threads and this device's runs", () => {
+    const environmentId = EnvironmentId.make("local");
+    const app = makeProject({ environmentId, id: ProjectId.make("app"), title: "App" });
+    const docs = makeProject({ environmentId, id: ProjectId.make("docs"), title: "Docs" });
+    const projects = [
+      app,
+      docs,
+      makeProject({
+        environmentId,
+        id: ProjectId.make("old"),
+        title: "Old",
+        archivedAt: "2026-06-01T00:00:00.000Z",
+      }),
+      makeProject({
+        environmentId,
+        id: ProjectId.make("scratch"),
+        title: "No project",
+        isScratch: true,
+      }),
+    ];
+    const thread = (id: string, input: Partial<EnvironmentThreadShell> = {}) =>
+      makeThread({
+        environmentId,
+        projectId: app.id,
+        id: ThreadId.make(id),
+        title: id,
+        ...input,
+      });
+    const threads = [
+      thread("approval", { hasPendingApprovals: true }),
+      thread("working", {
+        runtime: {
+          status: "running",
+          activeRunId: null,
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          providerName: "Codex",
+          lastError: null,
+          updatedAt: "2026-06-01T00:00:00.000Z",
+        },
+      }),
+      thread("subagent", {
+        hasPendingApprovals: true,
+        lineage: {
+          rootThreadId: ThreadId.make("approval"),
+          parentThreadId: ThreadId.make("approval"),
+          relationshipToParent: "subagent",
+        },
+      }),
+      thread("archived", {
+        hasPendingApprovals: true,
+        archivedAt: "2026-06-01T00:00:00.000Z",
+      }),
+    ];
+    const scopes = buildHomeProjectScopes({
+      projects,
+      environmentId: null,
+      projectGroupingMode: "repository",
+    });
+    const build = (query: string) =>
+      buildHomeGridProjects({
+        scopes,
+        threads,
+        runningProjectKeys: new Set([`${environmentId}:${docs.id}`]),
+        environmentLabel: () => "Laptop",
+        query,
+      });
+
+    expect(
+      build("").map(({ displayName, badges, hasThreads }) => ({
+        displayName,
+        badges,
+        hasThreads,
+      })),
+    ).toEqual([
+      {
+        displayName: "App",
+        badges: { attention: 1, working: true, appRunning: false },
+        hasThreads: true,
+      },
+      {
+        displayName: "Docs",
+        badges: { attention: 0, working: false, appRunning: true },
+        hasThreads: false,
+      },
+    ]);
+    expect(build("docs").map((project) => project.displayName)).toEqual(["Docs"]);
   });
 });

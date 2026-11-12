@@ -123,6 +123,19 @@ export const TerminalSummary = Schema.Struct({
 });
 export type TerminalSummary = typeof TerminalSummary.Type;
 
+/** A thread terminal as an agent checks it: what runs there, where it listens, what it printed. */
+export const TerminalAppStatus = Schema.Struct({
+  terminalId: Schema.String,
+  label: Schema.String,
+  cwd: Schema.String,
+  commandRunning: Schema.Boolean,
+  shellExited: Schema.Boolean,
+  exitCode: Schema.NullOr(Schema.Int),
+  urls: Schema.Array(Schema.String),
+  output: Schema.String,
+});
+export type TerminalAppStatus = typeof TerminalAppStatus.Type;
+
 const TerminalMetadataSnapshotEvent = Schema.Struct({
   type: Schema.Literal("snapshot"),
   terminals: Schema.Array(TerminalSummary),

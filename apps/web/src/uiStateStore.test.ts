@@ -7,6 +7,7 @@ import {
   markThreadVisited,
   parsePersistedState,
   PERSISTED_STATE_KEY,
+  type HomeFolder,
   type PersistedUiState,
   persistState,
   reorderProjects,
@@ -24,6 +25,7 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
     threadChangedFilesExpandedById: {},
     defaultAdvertisedEndpointKey: null,
     pullRequestMergeMethod: "merge",
+    homeFolders: [],
     ...overrides,
   };
 }
@@ -114,9 +116,15 @@ describe("parsePersistedState", () => {
           "turn-2": true,
         },
       },
+      homeFolders: [
+        { id: "folder-1", name: "Tools", memberKeys: ["physical-a", "", 3, "physical-a"] },
+        { id: "", name: "No id", memberKeys: [] },
+        "not-a-folder",
+      ] as unknown as HomeFolder[],
     });
 
     expect(parsed).toEqual({
+      homeFolders: [{ id: "folder-1", name: "Tools", memberKeys: ["physical-a"] }],
       projectExpandedById: {
         logical: false,
       },
@@ -214,6 +222,7 @@ describe("uiStateStore persistence", () => {
         },
       },
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
+      homeFolders: [{ id: "folder-1", name: "Tools", memberKeys: ["physical-a", "physical-b"] }],
     });
 
     persistState(state);
@@ -240,6 +249,7 @@ describe("uiStateStore persistence", () => {
         },
       },
       pullRequestMergeMethod: "merge",
+      homeFolders: [{ id: "folder-1", name: "Tools", memberKeys: ["physical-a", "physical-b"] }],
     });
     expect(parsePersistedState(persisted)).toEqual({
       ...state,

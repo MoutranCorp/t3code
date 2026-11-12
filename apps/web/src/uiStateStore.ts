@@ -31,12 +31,21 @@ export interface PersistedUiState {
   threadChangedFilesExpansionVersion?: number;
   threadChangedFilesExpandedById?: Record<string, Record<string, boolean>>;
   pullRequestMergeMethod?: string;
+  homeFolders?: HomeFolder[];
+}
+
+/** A Home folder. Members are physical project keys, like `projectOrder`; the sidebar ignores folders. */
+export interface HomeFolder {
+  readonly id: string;
+  readonly name: string;
+  readonly memberKeys: readonly string[];
 }
 
 export interface UiProjectState {
   projectExpandedById: Record<string, boolean>;
   projectOrder: string[];
   sidebarProjectScopeKeys: string[];
+  homeFolders: readonly HomeFolder[];
 }
 
 export interface UiThreadState {
@@ -59,6 +68,7 @@ const initialState: UiState = {
   projectExpandedById: {},
   projectOrder: [],
   sidebarProjectScopeKeys: [],
+  homeFolders: [],
   threadLastVisitedAtById: {},
   threadChangedFilesExpandedById: {},
   defaultAdvertisedEndpointKey: null,
@@ -114,6 +124,16 @@ function sanitizeTimestampRecord(value: unknown): Record<string, string> {
   );
 }
 
+function sanitizeHomeFolders(value: unknown): HomeFolder[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== "object") return [];
+    const { id, name, memberKeys } = entry as Record<string, unknown>;
+    if (typeof id !== "string" || id.length === 0 || typeof name !== "string") return [];
+    return [{ id, name, memberKeys: sanitizeStringArray(memberKeys) }];
+  });
+}
+
 function isPullRequestMergeMethod(value: unknown): value is PullRequestMergeMethod {
   return value === "merge" || value === "squash" || value === "rebase";
 }
@@ -157,6 +177,7 @@ export function parsePersistedState(parsed: PersistedUiState): UiState {
     pullRequestMergeMethod: isPullRequestMergeMethod(parsed.pullRequestMergeMethod)
       ? parsed.pullRequestMergeMethod
       : initialState.pullRequestMergeMethod,
+    homeFolders: sanitizeHomeFolders(parsed.homeFolders),
   };
 }
 
@@ -236,6 +257,7 @@ export function persistState(state: UiState): void {
         threadChangedFilesExpansionVersion: THREAD_CHANGED_FILES_EXPANSION_VERSION,
         threadChangedFilesExpandedById: state.threadChangedFilesExpandedById,
         pullRequestMergeMethod: state.pullRequestMergeMethod,
+        homeFolders: [...state.homeFolders],
       } satisfies PersistedUiState),
     );
     if (!legacyKeysCleanedUp) {
@@ -441,6 +463,7 @@ interface UiStateStore extends UiState {
     draggedProjectIds: readonly string[],
     targetProjectIds: readonly string[],
   ) => void;
+  updateHomeFolders: (update: (folders: readonly HomeFolder[]) => readonly HomeFolder[]) => void;
 }
 
 export const useUiStateStore = create<UiStateStore>((set) => ({
@@ -462,6 +485,7 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
     set((state) =>
       reorderProjects(state, currentProjectOrder, draggedProjectIds, targetProjectIds),
     ),
+  updateHomeFolders: (update) => set((state) => ({ homeFolders: update(state.homeFolders) })),
 }));
 
 useUiStateStore.subscribe((state) => debouncedPersistState.maybeExecute(state));

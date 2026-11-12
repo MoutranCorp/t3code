@@ -30,9 +30,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { AsyncResult, Atom } from "effect/reactivity";
 import {
   ChevronDownIcon,
+  EllipsisIcon,
+  ExternalLinkIcon,
   PlayIcon,
   RotateCwIcon,
   SettingsIcon,
+  SmartphoneIcon,
   SquareIcon,
   WrenchIcon,
   XIcon,
@@ -52,6 +55,7 @@ import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { getClientSettings } from "~/hooks/useSettings";
+import { readLocalApi } from "~/localApi";
 import { randomUUID } from "~/lib/utils";
 import { useThreadDiscoveredPorts } from "~/portDiscoveryState";
 import { readThreadPreviewState, setActivePreviewTab } from "~/previewStateStore";
@@ -77,7 +81,6 @@ import { openDiscoveredPort } from "../preview/openDiscoveredPort";
 import { previewBridge } from "../preview/previewBridge";
 import { ScriptIcon } from "../projectScriptEditor";
 import { useThreadTerminalActions } from "../terminal/useThreadTerminalActions";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Group, GroupSeparator } from "../ui/group";
 import { Menu, MenuItem, MenuItemLabel, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
@@ -96,6 +99,8 @@ import {
   runExitedPrompt,
   terminalOutputTail,
 } from "./projectRunControl.logic";
+import { ProjectRunStatus } from "./ProjectRunOutput";
+import { ProjectRunPhoneDialog } from "./ProjectRunPhoneDialog";
 import { readRunDetectionFiles } from "./readRunDetectionFiles";
 
 const FIX_OUTPUT_LINES = 60;
@@ -147,21 +152,34 @@ function HeaderButton(props: {
   );
 }
 
-const STATUS_DOT_CLASS = {
-  success: "bg-success",
-  info: "bg-info",
-  warning: "bg-warning",
-} as const;
-
-function RunStatus(props: {
-  readonly tone: keyof typeof STATUS_DOT_CLASS;
-  readonly label: string;
+/** Mounted only while the menu is open, so discovery runs only then. */
+function RunServerMenuItems(props: {
+  readonly threadRef: ScopedThreadRef;
+  readonly run: ProjectRun;
+  readonly previewUrl: string | null;
+  readonly onOpenPhone: (url: string) => void;
 }) {
+  const { environmentId, threadId } = props.threadRef;
+  const servers = useThreadDiscoveredPorts({ environmentId, threadId });
+  const url = findRunServer(servers, threadId, props.run)?.url ?? props.previewUrl;
+  const openInBrowser = (serverUrl: string) => {
+    void readLocalApi()
+      ?.shell.openExternal(resolveDiscoveredServerUrl(environmentId, serverUrl))
+      .catch((error: unknown) => reportFailure("Could not open the browser", error));
+  };
   return (
-    <Badge variant={props.tone}>
-      <span aria-hidden className={`size-1.5 rounded-full ${STATUS_DOT_CLASS[props.tone]}`} />
-      <span className={LABEL_CLASS}>{props.label}</span>
-    </Badge>
+    <>
+      <MenuItem disabled={url === null} onClick={() => url && openInBrowser(url)}>
+        <ExternalLinkIcon className="size-4" />
+        <MenuItemLabel>
+          {url === null ? "Waiting for the app's address…" : "Open in browser"}
+        </MenuItemLabel>
+      </MenuItem>
+      <MenuItem disabled={url === null} onClick={() => url && props.onOpenPhone(url)}>
+        <SmartphoneIcon className="size-4" />
+        <MenuItemLabel>Open on my phone</MenuItemLabel>
+      </MenuItem>
+    </>
   );
 }
 
@@ -183,6 +201,10 @@ export const ProjectRunControl = memo(function ProjectRunControl(props: ProjectR
   const sessions = useKnownTerminalSessions({ environmentId, threadId });
   const runs = useProjectRunStore((state) => selectThreadRuns(state, threadKey));
   const [detecting, setDetecting] = useState(false);
+  const [phone, setPhone] = useState<{ readonly url: string | null; readonly open: boolean }>({
+    url: null,
+    open: false,
+  });
 
   const terminals =
     sessions === null
@@ -395,12 +417,20 @@ export const ProjectRunControl = memo(function ProjectRunControl(props: ProjectR
     });
   };
 
+  const statusTerminalId = (run: ProjectRun) => (canReadTerminals ? run.terminalId : null);
+
   if (view.run && (view.phase === "starting" || view.phase === "running")) {
     const active = view.run;
     const running = view.phase === "running";
     return (
       <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label="Project run">
-        <RunStatus tone={running ? "success" : "info"} label={running ? "Running" : "Starting"} />
+        <ProjectRunStatus
+          tone={running ? "success" : "info"}
+          label={running ? "Running" : "Starting"}
+          labelClassName={LABEL_CLASS}
+          threadRef={threadRef}
+          terminalId={statusTerminalId(active)}
+        />
         <HeaderButton
           label="Restart"
           render={
@@ -431,6 +461,27 @@ export const ProjectRunControl = memo(function ProjectRunControl(props: ProjectR
           <SquareIcon />
           <span className={LABEL_CLASS}>Stop</span>
         </HeaderButton>
+        <Menu>
+          <MenuTrigger
+            render={<Button size="icon-xs" variant="ghost" aria-label="More run actions" />}
+          >
+            <EllipsisIcon />
+          </MenuTrigger>
+          <MenuPopup align="end">
+            <RunServerMenuItems
+              threadRef={threadRef}
+              run={active}
+              previewUrl={view.script?.previewUrl ?? null}
+              onOpenPhone={(url) => setPhone({ url, open: true })}
+            />
+          </MenuPopup>
+        </Menu>
+        <ProjectRunPhoneDialog
+          environmentId={environmentId}
+          url={phone.url}
+          open={phone.open}
+          onOpenChange={(open) => setPhone((current) => ({ ...current, open }))}
+        />
       </div>
     );
   }
@@ -441,7 +492,13 @@ export const ProjectRunControl = memo(function ProjectRunControl(props: ProjectR
     <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label="Project run">
       {exited ? (
         <>
-          <RunStatus tone="warning" label="Exited" />
+          <ProjectRunStatus
+            tone="warning"
+            label="Exited"
+            labelClassName={LABEL_CLASS}
+            threadRef={threadRef}
+            terminalId={statusTerminalId(exited)}
+          />
           <HeaderButton
             label="Fix"
             tooltip="Ask an agent in a new thread why the run stopped"

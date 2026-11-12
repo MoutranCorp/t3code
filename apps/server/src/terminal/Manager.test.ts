@@ -10,6 +10,7 @@ import {
   ProviderInstanceId,
   ProjectId,
   TerminalProviderInstanceNotFoundError,
+  ThreadId,
 } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Clock from "effect/Clock";
@@ -244,6 +245,7 @@ interface CreateManagerOptions {
   >[0]["resolveProviderInstanceEnvironment"];
   managedBinaryCacheDir?: string;
   managedBinaryToolsDir?: string;
+  scanServers?: Parameters<typeof TerminalManager.makeWithOptions>[0]["scanServers"];
 }
 
 interface ManagerFixture {
@@ -295,6 +297,7 @@ const createManager = (
         ...(options.resolveProviderInstanceEnvironment !== undefined
           ? { resolveProviderInstanceEnvironment: options.resolveProviderInstanceEnvironment }
           : {}),
+        ...(options.scanServers !== undefined ? { scanServers: options.scanServers } : {}),
         ...(options.managedBinaryCacheDir === undefined
           ? {}
           : {
@@ -810,6 +813,84 @@ it.layer(
       yield* TestClock.adjust("1 second");
 
       expect(yield* Deferred.await(label)).toBe("Google Chrome");
+    }).pipe(Effect.provide(TestClock.layer())),
+  );
+
+  it.effect("reads a thread's terminals with their servers and rendered output tail", () =>
+    Effect.gen(function* () {
+      const server = (port: number, terminal: { threadId: string; terminalId: string } | null) => ({
+        host: "localhost",
+        port,
+        url: `http://localhost:${port}/`,
+        processName: null,
+        pid: null,
+        terminal: terminal && {
+          threadId: ThreadId.make(terminal.threadId),
+          terminalId: terminal.terminalId,
+        },
+      });
+      const { manager, ptyAdapter } = yield* createManager(50, {
+        subprocessPollIntervalMs: 1_000,
+        processKillGraceMs: 0,
+        processTable: Effect.succeed([
+          { pid: 9000, ppid: 1, name: "zsh" },
+          { pid: 200, ppid: 9000, name: "node" },
+          { pid: 9001, ppid: 1, name: "zsh" },
+          { pid: 9002, ppid: 1, name: "zsh" },
+        ]),
+        scanServers: () =>
+          Effect.succeed([
+            server(5173, { threadId: "thread-1", terminalId: "dev" }),
+            server(3000, { threadId: "thread-2", terminalId: "dev" }),
+            server(8080, null),
+          ]),
+      }).pipe(Effect.provide(layerWithHostPlatform("linux")));
+      const running = yield* Deferred.make<void>();
+      const printed = yield* Deferred.make<void>();
+      const unsubscribe = yield* manager.subscribe((event) =>
+        event.threadId !== "thread-1" || event.terminalId !== "dev"
+          ? Effect.void
+          : event.type === "activity"
+            ? Deferred.succeed(running, undefined).pipe(Effect.asVoid)
+            : event.type === "output"
+              ? Deferred.succeed(printed, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+      yield* manager.open(openInput({ terminalId: "dev" }));
+      yield* manager.open(openInput({ terminalId: "idle" }));
+      yield* manager.open(openInput({ threadId: "thread-2", terminalId: "dev" }));
+      ptyAdapter.processes[0]!.emitData(
+        "$ npm run dev\r\n\u001b[32mready\u001b[0m\r\nbuild 10%\rbuild 100%\r\n  Local: http://localhost:5173/\r\n\r\n",
+      );
+      yield* TestClock.adjust("1 second");
+      yield* Deferred.await(printed);
+      yield* Deferred.await(running);
+
+      const apps = yield* manager.readThreadApps({ threadId: "thread-1", outputLines: 3 });
+
+      expect(apps.toSorted((a, b) => a.terminalId.localeCompare(b.terminalId))).toEqual([
+        {
+          terminalId: "dev",
+          label: "node",
+          cwd: process.cwd(),
+          commandRunning: true,
+          shellExited: false,
+          exitCode: null,
+          urls: ["http://localhost:5173/"],
+          output: "ready\nbuild 100%\n  Local: http://localhost:5173/",
+        },
+        {
+          terminalId: "idle",
+          label: "idle",
+          cwd: process.cwd(),
+          commandRunning: false,
+          shellExited: false,
+          exitCode: null,
+          urls: [],
+          output: "",
+        },
+      ]);
     }).pipe(Effect.provide(TestClock.layer())),
   );
 

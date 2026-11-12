@@ -7,12 +7,14 @@ import {
   useSensors,
   type Announcements,
   type DragEndEvent,
+  type DragMoveEvent,
   type UniqueIdentifier,
 } from "@dnd-kit/core";
 import {
   rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
+  type SortingStrategy,
 } from "@dnd-kit/sortable";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { selectProjectGroupingSettings } from "@t3tools/client-runtime/state/project-grouping";
@@ -36,7 +38,7 @@ import { useSidebarProjectGroups } from "../../hooks/useSidebarProjectGroups";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { readLocalApi } from "../../localApi";
-import { cn } from "../../lib/utils";
+import { cn, randomUUID } from "../../lib/utils";
 import { requestProjectRun } from "../../projectRunStore";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import {
@@ -55,14 +57,36 @@ import { readEnvironmentScope } from "../../state/session";
 import { shellEnvironment } from "../../state/shell";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
-import { useUiStateStore } from "../../uiStateStore";
+import { type HomeFolder, useUiStateStore } from "../../uiStateStore";
 import { sortSidebarV2ProjectGroups } from "../Sidebar.logic";
 import { Button } from "../ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { SidebarInset } from "../ui/sidebar";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
-import { HomeDockIcon, HomeNewProjectTile, HomeProjectTile } from "./HomeProjectTile";
+import { DescribeProjectDialog } from "./DescribeProjectDialog";
+import { HomeFolderDialog } from "./HomeFolderDialog";
+import { ImportProjectsDialog } from "./ImportProjectsDialog";
+import { HomeFolderTile } from "./HomeFolderTile";
+import {
+  addToHomeFolder,
+  buildHomeEntries,
+  createHomeFolder,
+  homeEntryReorderItems,
+  homeFolderEntryKey,
+  homeFolderMemberKeys,
+  isHomeGroupingDrop,
+  nextHomeFolderName,
+  pruneHomeFolders,
+  removeFromHomeFolders,
+  renameHomeFolder,
+  resolveHomeFolders,
+  sumHomeBadges,
+  ungroupHomeFolder,
+  type ResolvedHomeFolder,
+} from "./homeFolders.logic";
+import { HomeNewProjectTile } from "./HomeNewProjectTile";
+import { HomeDockIcon, HomeProjectTile } from "./HomeProjectTile";
 import {
   homeDockProjects,
   latestHomeThread,
@@ -85,7 +109,17 @@ type ProjectMenuAction =
   | "open-folder"
   | "generate-icon"
   | "reset-icon"
-  | "project-settings";
+  | "project-settings"
+  | "remove-from-folder"
+  | "move-to-folder"
+  | "new-folder-with"
+  | `folder:${string}`
+  | `with:${string}`;
+
+type FolderMenuAction = "open" | "rename" | "ungroup";
+
+/** Keyboard drags land exactly on a slot, so only pointer drags can make folders. */
+const NO_SHIFT_STRATEGY: SortingStrategy = () => null;
 
 // Space picks a tile up so Enter keeps opening it.
 const KEYBOARD_SENSOR_OPTIONS = {
@@ -136,6 +170,8 @@ export function HomeScreen() {
   const delegatedUnderParent = useDelegatedUnderParent();
   const projectOrder = useUiStateStore((state) => state.projectOrder);
   const reorderProjects = useUiStateStore((state) => state.reorderProjects);
+  const homeFolders = useUiStateStore((state) => state.homeFolders);
+  const updateHomeFolders = useUiStateStore((state) => state.updateHomeFolders);
   const localLastVisitedAtById = useUiStateStore((state) => state.threadLastVisitedAtById);
   const draftSessions = useComposerDraftStore((state) => state.draftThreadsByThreadKey);
   const appRunningThreadKeys = useAppRunningThreadKeys();
@@ -145,6 +181,12 @@ export function HomeScreen() {
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
   const projectIcon = useProjectIconActions();
   const [query, setQuery] = useState("");
+  const [openFolder, setOpenFolder] = useState<{
+    readonly id: string;
+    readonly renaming: boolean;
+  } | null>(null);
+  const [groupingTargetKey, setGroupingTargetKey] = useState<string | null>(null);
+  const [newProjectDialog, setNewProjectDialog] = useState<"describe" | "import" | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
@@ -153,6 +195,13 @@ export function HomeScreen() {
   const homeProjects = orderHomeProjects(
     sortSidebarV2ProjectGroups(projectGroups, threads, "updated_at", delegatedUnderParent),
     projectOrder,
+  );
+  const resolvedFolders = resolveHomeFolders(homeFolders, homeProjects);
+  const entries = buildHomeEntries(homeProjects, resolvedFolders);
+  const folderByProjectKey = new Map<string, ResolvedHomeFolder<SidebarProjectSnapshot>>(
+    resolvedFolders.flatMap((resolved) =>
+      resolved.projects.map((project) => [project.projectKey, resolved] as const),
+    ),
   );
   const searching = query.trim().length > 0;
   const shownProjects = searchHomeProjects(homeProjects, query);
@@ -165,6 +214,40 @@ export function HomeScreen() {
     appRunningThreadKeys,
     draftThreads: Object.values(draftSessions),
   });
+
+  const changeFolders = (update: (folders: readonly HomeFolder[]) => readonly HomeFolder[]) =>
+    updateHomeFolders((folders) => pruneHomeFolders(update(folders), homeProjects));
+
+  /** Drops a project on a tile: onto a folder adds it, onto a project makes a folder of both. */
+  const groupInto = (dragged: SidebarProjectSnapshot, targetKey: string) => {
+    const target = entries.find((entry) => entry.key === targetKey);
+    if (!target || target.key === dragged.projectKey) return;
+    // Next to its target in the shared order, so the folder keeps the target’s place.
+    const plan = planHomeReorder(
+      homeEntryReorderItems(entries),
+      projectOrder,
+      dragged.projectKey,
+      targetKey,
+    );
+    if (plan) reorderProjects(plan.currentOrder, plan.dragged, plan.target);
+    const keys = homeFolderMemberKeys(dragged);
+    if (target.kind === "folder") {
+      changeFolders((folders) => addToHomeFolder(folders, target.folder.id, keys));
+      return;
+    }
+    const id = randomUUID();
+    changeFolders((folders) =>
+      createHomeFolder(folders, {
+        id,
+        name: nextHomeFolderName(folders),
+        memberKeys: [...homeFolderMemberKeys(target.project), ...keys],
+      }),
+    );
+    setOpenFolder({ id, renaming: true });
+  };
+
+  const removeFromFolder = (project: SidebarProjectSnapshot) =>
+    changeFolders((folders) => removeFromHomeFolders(folders, homeFolderMemberKeys(project)));
 
   const openProject = async (project: SidebarProjectSnapshot, options?: { run: boolean }) => {
     const latest = latestHomeThread(project, threads, delegatedUnderParent, threadSortOrder);
@@ -196,6 +279,11 @@ export function HomeScreen() {
       const canPin = canPinProjectGroup(project);
       const hasThread =
         latestHomeThread(project, threads, delegatedUnderParent, threadSortOrder) !== null;
+      const currentFolder = folderByProjectKey.get(project.projectKey) ?? null;
+      const otherFolders = resolvedFolders.filter((resolved) => resolved !== currentFolder);
+      const loneProjects = entries.flatMap((entry) =>
+        entry.kind === "project" && entry.key !== project.projectKey ? [entry.project] : [],
+      );
       void (async () => {
         const clicked = await settlePromise(() =>
           api.contextMenu.show<ProjectMenuAction>(
@@ -221,6 +309,44 @@ export function HomeScreen() {
               ...(canOpenFolder(project.environmentId)
                 ? [{ id: "open-folder" as const, label: "Open folder", icon: "folder" }]
                 : []),
+              ...(otherFolders.length > 0 || loneProjects.length > 0
+                ? [
+                    {
+                      id: "move-to-folder" as const,
+                      label: "Move to folder",
+                      separatorBefore: true,
+                      children: [
+                        ...otherFolders.map(({ folder }) => ({
+                          id: `folder:${folder.id}` as const,
+                          label: folder.name,
+                        })),
+                        ...(loneProjects.length > 0
+                          ? [
+                              {
+                                id: "new-folder-with" as const,
+                                label: "New folder with",
+                                header: true,
+                                separatorBefore: otherFolders.length > 0,
+                              },
+                              ...loneProjects.map((other) => ({
+                                id: `with:${other.projectKey}` as const,
+                                label: other.displayName,
+                              })),
+                            ]
+                          : []),
+                      ],
+                    },
+                  ]
+                : []),
+              ...(currentFolder
+                ? [
+                    {
+                      id: "remove-from-folder" as const,
+                      label: `Remove from ${currentFolder.folder.name}`,
+                      separatorBefore: otherFolders.length === 0 && loneProjects.length === 0,
+                    },
+                  ]
+                : []),
               ...(readEnvironmentScope(project.environmentId, AuthOrchestrationOperateScope)
                 ? [
                     { id: "generate-icon" as const, label: "Generate icon", separatorBefore: true },
@@ -240,7 +366,19 @@ export function HomeScreen() {
           ),
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
-        switch (clicked.value) {
+        const action = clicked.value;
+        if (action.startsWith("folder:")) {
+          groupInto(project, homeFolderEntryKey(action.slice("folder:".length)));
+          return;
+        }
+        if (action.startsWith("with:")) {
+          groupInto(project, action.slice("with:".length));
+          return;
+        }
+        switch (action) {
+          case "remove-from-folder":
+            removeFromFolder(project);
+            return;
           case "open-project":
             handleOpen(project);
             return;
@@ -257,7 +395,7 @@ export function HomeScreen() {
             return;
           case "pin":
           case "unpin":
-            setProjectGroupPinned(project, clicked.value === "pin");
+            setProjectGroupPinned(project, action === "pin");
             return;
           case "open-folder":
             void openInEditor({
@@ -284,20 +422,92 @@ export function HomeScreen() {
     },
   );
 
+  const handleOpenFolder = useStableCallback((folderId: string) =>
+    setOpenFolder({ id: folderId, renaming: false }),
+  );
+
+  const handleFolderContextMenu = useStableCallback(
+    (folder: HomeFolder, position: { readonly x: number; readonly y: number }) => {
+      const api = readLocalApi();
+      if (!api) return;
+      void (async () => {
+        const clicked = await settlePromise(() =>
+          api.contextMenu.show<FolderMenuAction>(
+            [
+              { id: "open", label: "Open folder", icon: "folder-open" },
+              { id: "rename", label: "Rename" },
+              { id: "ungroup", label: "Ungroup", separatorBefore: true },
+            ],
+            position,
+          ),
+        );
+        if (clicked._tag === "Failure" || clicked.value === null) return;
+        switch (clicked.value) {
+          case "open":
+          case "rename":
+            setOpenFolder({ id: folder.id, renaming: clicked.value === "rename" });
+            return;
+          case "ungroup":
+            changeFolders((folders) => ungroupHomeFolder(folders, folder.id));
+            return;
+        }
+      })();
+    },
+  );
+
+  const handleDragMove = ({ active, over, activatorEvent }: DragMoveEvent) => {
+    const rect = active.rect.current.translated;
+    const dragsProject = entries.some(
+      (entry) => entry.kind === "project" && entry.key === active.id,
+    );
+    const next =
+      dragsProject &&
+      !(activatorEvent instanceof KeyboardEvent) &&
+      over !== null &&
+      over.id !== active.id &&
+      rect !== null &&
+      isHomeGroupingDrop(
+        { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+        over.rect,
+      )
+        ? String(over.id)
+        : null;
+    if (next !== groupingTargetKey) setGroupingTargetKey(next);
+  };
+
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const groupingKey = groupingTargetKey;
+    setGroupingTargetKey(null);
     if (!over) return;
-    const plan = planHomeReorder(homeProjects, projectOrder, String(active.id), String(over.id));
+    const dragged = homeProjects.find((project) => project.projectKey === active.id);
+    if (dragged && groupingKey !== null && groupingKey === over.id) {
+      groupInto(dragged, groupingKey);
+      return;
+    }
+    const plan = planHomeReorder(
+      homeEntryReorderItems(entries),
+      projectOrder,
+      String(active.id),
+      String(over.id),
+    );
     if (plan) reorderProjects(plan.currentOrder, plan.dragged, plan.target);
   };
 
-  const nameOf = (id: UniqueIdentifier) =>
-    homeProjects.find((project) => project.projectKey === id)?.displayName ?? String(id);
+  const nameOf = (id: UniqueIdentifier) => {
+    const entry = entries.find((candidate) => candidate.key === id);
+    if (!entry) return String(id);
+    return entry.kind === "project" ? entry.project.displayName : `the ${entry.folder.name} folder`;
+  };
   const announcements: Announcements = {
     onDragStart: ({ active }) => `Picked up ${nameOf(active.id)}.`,
     onDragOver: ({ active, over }) =>
       over ? `${nameOf(active.id)} is at ${nameOf(over.id)}’s place.` : undefined,
     onDragEnd: ({ active, over }) =>
-      over ? `${nameOf(active.id)} moved to ${nameOf(over.id)}’s place.` : undefined,
+      over
+        ? groupingTargetKey === over.id
+          ? `${nameOf(active.id)} grouped with ${nameOf(over.id)}.`
+          : `${nameOf(active.id)} moved to ${nameOf(over.id)}’s place.`
+        : undefined,
     onDragCancel: ({ active }) => `Stopped moving ${nameOf(active.id)}.`,
   };
 
@@ -318,6 +528,11 @@ export function HomeScreen() {
     // A pending environment cannot prove the workspace is empty.
     return bootstrapped ? <Navigate to="/" replace /> : null;
   }
+
+  const shownFolder =
+    openFolder === null
+      ? null
+      : (resolvedFolders.find((resolved) => resolved.folder.id === openFolder.id) ?? null);
 
   const tileProps = (project: SidebarProjectSnapshot) => {
     const badges = badgesByProjectKey.get(project.projectKey) ?? NO_HOME_BADGES;
@@ -368,25 +583,65 @@ export function HomeScreen() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragMove={handleDragMove}
             onDragEnd={handleDragEnd}
+            onDragCancel={() => setGroupingTargetKey(null)}
             accessibility={{ announcements }}
           >
             <SortableContext
-              items={shownProjects.map((project) => project.projectKey)}
-              strategy={rectSortingStrategy}
+              items={
+                searching
+                  ? shownProjects.map((project) => project.projectKey)
+                  : entries.map((entry) => entry.key)
+              }
+              // Tiles hold still while a dragged one hovers another's middle, so it can drop in.
+              strategy={groupingTargetKey === null ? rectSortingStrategy : NO_SHIFT_STRATEGY}
             >
               <ul
                 aria-label="Projects"
                 className="mx-auto flex max-w-5xl flex-wrap justify-center gap-x-6 gap-y-8 sm:gap-x-10"
               >
-                {shownProjects.map((project) => (
-                  <HomeProjectTile
-                    key={project.projectKey}
-                    {...tileProps(project)}
-                    dragDisabled={searching}
+                {searching
+                  ? shownProjects.map((project) => (
+                      <HomeProjectTile
+                        key={project.projectKey}
+                        {...tileProps(project)}
+                        dragDisabled
+                      />
+                    ))
+                  : entries.map((entry) =>
+                      entry.kind === "project" ? (
+                        <HomeProjectTile
+                          key={entry.key}
+                          {...tileProps(entry.project)}
+                          dragDisabled={false}
+                          groupingTarget={groupingTargetKey === entry.key}
+                        />
+                      ) : (
+                        <HomeFolderTile
+                          key={entry.key}
+                          entryKey={entry.key}
+                          folder={entry.folder}
+                          projects={entry.projects}
+                          {...sumHomeBadges(
+                            entry.projects.map(
+                              (project) =>
+                                badgesByProjectKey.get(project.projectKey) ?? NO_HOME_BADGES,
+                            ),
+                          )}
+                          dragDisabled={false}
+                          groupingTarget={groupingTargetKey === entry.key}
+                          onOpen={handleOpenFolder}
+                          onContextMenu={handleFolderContextMenu}
+                        />
+                      ),
+                    )}
+                {searching ? null : (
+                  <HomeNewProjectTile
+                    onDescribe={() => setNewProjectDialog("describe")}
+                    onImport={() => setNewProjectDialog("import")}
                   />
-                ))}
-                {searching ? null : <HomeNewProjectTile />}
+                )}
               </ul>
             </SortableContext>
           </DndContext>
@@ -415,6 +670,33 @@ export function HomeScreen() {
           </nav>
         ) : null}
       </div>
+      {shownFolder ? (
+        <HomeFolderDialog
+          key={shownFolder.folder.id}
+          folder={shownFolder.folder}
+          projects={shownFolder.projects}
+          renaming={openFolder?.renaming ?? false}
+          tileProps={tileProps}
+          onRename={(name) =>
+            changeFolders((folders) => renameHomeFolder(folders, shownFolder.folder.id, name))
+          }
+          onReorder={(memberKeys) =>
+            changeFolders((folders) =>
+              folders.map((folder) =>
+                folder.id === shownFolder.folder.id ? { ...folder, memberKeys } : folder,
+              ),
+            )
+          }
+          onRemove={removeFromFolder}
+          onClose={() => setOpenFolder(null)}
+        />
+      ) : null}
+      {newProjectDialog === "import" ? (
+        <ImportProjectsDialog onClose={() => setNewProjectDialog(null)} />
+      ) : null}
+      {newProjectDialog === "describe" ? (
+        <DescribeProjectDialog onClose={() => setNewProjectDialog(null)} />
+      ) : null}
     </SidebarInset>
   );
 }

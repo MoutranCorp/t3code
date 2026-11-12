@@ -3,10 +3,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAtomValue } from "@effect/atom-react";
 import { generatedProjectIconSvg } from "@t3tools/shared/generatedProjectIcon";
 import { isProjectFaviconFallbackUrl } from "@t3tools/shared/projectFavicon";
-import { FolderCodeIcon, PlusIcon } from "lucide-react";
+import { FolderCodeIcon } from "lucide-react";
 import { createElement, lazy, memo, Suspense, type CSSProperties, type MouseEvent } from "react";
 
-import { openCommandPalette } from "../../commandPaletteBus";
 import { cn } from "../../lib/utils";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { projectFaviconUrlAtom } from "../../state/assets";
@@ -29,11 +28,13 @@ interface HomeProjectTileProps {
   ) => void;
 }
 
-const TILE_BUTTON_CLASS =
+export const HOME_GROUPING_TARGET_CLASS = "bg-foreground/10 ring-2 ring-primary/50 ring-inset";
+
+export const TILE_BUTTON_CLASS =
   "group/home-tile flex cursor-pointer flex-col items-center rounded-3xl p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
 /** A keyboard-opened menu reports (0, 0), so it opens under the element instead. */
-function contextMenuPosition(event: MouseEvent<HTMLElement>) {
+export function contextMenuPosition(event: MouseEvent<HTMLElement>) {
   if (event.clientX !== 0 || event.clientY !== 0) return { x: event.clientX, y: event.clientY };
   const rect = event.currentTarget.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.bottom };
@@ -115,7 +116,11 @@ function TileGlyph(props: { readonly project: SidebarProjectSnapshot; readonly s
         aria-hidden
         className={cn(
           "leading-none select-none",
-          props.size === "grid" ? "text-4xl sm:text-5xl" : "text-3xl",
+          props.size === "grid"
+            ? "text-4xl sm:text-5xl"
+            : props.size === "mini"
+              ? "text-sm"
+              : "text-3xl",
         )}
       >
         {icon.emoji}
@@ -125,9 +130,10 @@ function TileGlyph(props: { readonly project: SidebarProjectSnapshot; readonly s
   return <AutomaticGlyph project={props.project} />;
 }
 
-type TileSize = "grid" | "dock";
+type TileSize = "grid" | "dock" | "mini";
 
-function HomeProjectIcon(props: {
+/** The gradient tile and glyph that stand for a project on Home and its project screen. */
+export function HomeProjectIcon(props: {
   readonly project: SidebarProjectSnapshot;
   readonly size: TileSize;
   readonly attention: number;
@@ -138,10 +144,12 @@ function HomeProjectIcon(props: {
   return (
     <span
       className={cn(
-        "relative flex shrink-0 items-center justify-center bg-linear-to-br from-(--home-tile-from) to-(--home-tile-to) text-white shadow-md shadow-black/20 ring-1 ring-white/15 ring-inset motion-safe:transition-[scale,filter] motion-safe:duration-150 group-hover/home-tile:scale-[1.04] group-hover/home-tile:brightness-110 [&_svg]:drop-shadow-xs",
-        props.size === "grid"
-          ? "size-20 rounded-2xl sm:size-24 sm:rounded-3xl"
-          : "size-15 rounded-2xl",
+        "relative flex shrink-0 items-center justify-center bg-linear-to-br from-(--home-tile-from) to-(--home-tile-to) text-white ring-1 ring-white/15 ring-inset [&_svg]:drop-shadow-xs",
+        props.size === "mini"
+          ? "size-full rounded-lg shadow-xs shadow-black/20"
+          : "shadow-md shadow-black/20 motion-safe:transition-[scale,filter] motion-safe:duration-150 group-hover/home-tile:scale-[1.04] group-hover/home-tile:brightness-110",
+        props.size === "grid" && "size-20 rounded-2xl sm:size-24 sm:rounded-3xl",
+        props.size === "dock" && "size-15 rounded-2xl",
       )}
       // Dark enough at the light end that a white glyph keeps 3:1 on every hue, in both themes.
       style={
@@ -187,7 +195,7 @@ function HomeProjectIcon(props: {
   );
 }
 
-function RunningDot(props: { readonly appRunning: boolean }) {
+export function RunningDot(props: { readonly appRunning: boolean }) {
   return (
     <span aria-hidden className="flex h-1.5 items-center">
       {props.appRunning ? <span className="size-1.5 rounded-full bg-success" /> : null}
@@ -196,7 +204,11 @@ function RunningDot(props: { readonly appRunning: boolean }) {
 }
 
 export const HomeProjectTile = memo(function HomeProjectTile(
-  props: HomeProjectTileProps & { readonly dragDisabled: boolean },
+  props: HomeProjectTileProps & {
+    readonly dragDisabled: boolean;
+    /** A dragged tile hovers its middle, so dropping makes a folder. */
+    readonly groupingTarget?: boolean;
+  },
 ) {
   const { project } = props;
   const {
@@ -221,7 +233,11 @@ export const HomeProjectTile = memo(function HomeProjectTile(
         {...(props.dragDisabled ? {} : attributes)}
         {...listeners}
         aria-label={homeProjectAccessibleName(project.displayName, props)}
-        className={cn(TILE_BUTTON_CLASS, "w-24 gap-2 sm:w-28")}
+        className={cn(
+          TILE_BUTTON_CLASS,
+          "w-24 gap-2 sm:w-28",
+          props.groupingTarget && HOME_GROUPING_TARGET_CLASS,
+        )}
         onClick={() => props.onOpen(project)}
         onContextMenu={(event) => {
           event.preventDefault();
@@ -275,21 +291,3 @@ export const HomeDockIcon = memo(function HomeDockIcon(props: HomeProjectTilePro
     </li>
   );
 });
-
-export function HomeNewProjectTile() {
-  return (
-    <li className="flex justify-center">
-      <button
-        type="button"
-        className={cn(TILE_BUTTON_CLASS, "w-24 gap-2 sm:w-28")}
-        onClick={() => openCommandPalette({ open: "add-project" })}
-      >
-        <span className="flex size-20 items-center justify-center rounded-2xl border-2 sm:size-24 sm:rounded-3xl border-dashed border-muted-foreground/35 text-muted-foreground motion-safe:transition-colors group-hover/home-tile:border-muted-foreground/70 group-hover/home-tile:text-foreground">
-          <PlusIcon aria-hidden className="size-8" />
-        </span>
-        <span className="text-sm font-medium text-muted-foreground">New project</span>
-        <RunningDot appRunning={false} />
-      </button>
-    </li>
-  );
-}

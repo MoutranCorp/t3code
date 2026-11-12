@@ -475,6 +475,9 @@ export function summarizeT3ToolCalls(
     case "capabilities":
       label = phrase("Checked", "check", `orchestration capabilities ${times}`);
       break;
+    case "app-status":
+      label = phrase("Checked", "check", `the running app ${times}`);
+      break;
   }
   return { label, failedCount };
 }

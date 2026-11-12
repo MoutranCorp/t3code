@@ -1,10 +1,13 @@
 import type {
+  AdvertisedEndpoint,
   DiscoveredLocalServer,
   PreviewSessionSnapshot,
   ProjectScript,
   ThreadId,
 } from "@t3tools/contracts";
 import type { TerminalSessionState } from "@t3tools/client-runtime/state/terminal";
+import { isTailnetHost } from "@t3tools/shared/hostClassification";
+import { isLoopbackHost } from "@t3tools/shared/preview";
 import type { DetectedRunTarget } from "@t3tools/shared/projectRunDetection";
 
 import type { ThreadPreviewState } from "~/previewStateStore";
@@ -243,6 +246,47 @@ export function terminalOutputTail(raw: string, maxLines: number): TerminalOutpu
     lineStart,
     lineEnd: lines.length,
   };
+}
+
+export interface RunPhoneAddress {
+  readonly label: string;
+  readonly url: string;
+}
+
+type PhoneEndpoint = Pick<AdvertisedEndpoint, "label" | "httpBaseUrl" | "reachability" | "status">;
+
+/**
+ * Where a phone can open a run's server: the address this client already reaches it at when that is
+ * on the network, else this computer's LAN and tailnet addresses with the server's port.
+ */
+export function runPhoneAddresses(
+  serverUrl: string,
+  endpoints: ReadonlyArray<PhoneEndpoint>,
+): ReadonlyArray<RunPhoneAddress> {
+  const server = parseUrl(serverUrl);
+  if (!server) return [];
+  if (!isLoopbackHost(server.hostname)) {
+    return [{ label: isTailnetHost(server.hostname) ? "Tailscale" : "Network", url: server.href }];
+  }
+  const addresses = new Map<string, RunPhoneAddress>();
+  for (const endpoint of endpoints) {
+    if (endpoint.reachability !== "lan" && endpoint.reachability !== "private-network") continue;
+    const base = parseUrl(endpoint.httpBaseUrl);
+    // HTTPS endpoints are proxies for T3 Code's own port, not the app's.
+    if (!base || base.protocol !== "http:" || endpoint.status === "unavailable") continue;
+    const url = new URL(server.href);
+    url.hostname = base.hostname;
+    if (!addresses.has(url.href)) addresses.set(url.href, { label: endpoint.label, url: url.href });
+  }
+  return [...addresses.values()];
+}
+
+function parseUrl(raw: string): URL | null {
+  try {
+    return new URL(raw);
+  } catch {
+    return null;
+  }
 }
 
 export function noRunTargetPrompt(): string {

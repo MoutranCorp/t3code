@@ -16,6 +16,7 @@ export function ThreadHeader(props: {
   readonly title: string;
   readonly subtitle: string;
   readonly gitControls: ThreadGitControlsProps;
+  readonly runActions?: ReadonlyArray<AppBarAction>;
   readonly onReturnToThread?: () => void;
   readonly draft?: boolean;
   readonly hasThreadCwd: boolean;
@@ -30,6 +31,7 @@ export function ThreadHeader(props: {
   const filesVisible = props.inspectorMode === "files" && panes.auxiliaryPaneVisible;
   const actions: AppBarAction[] = props.hasThreadCwd
     ? [
+        ...(props.runActions ?? []),
         {
           accessibilityLabel: filesVisible ? "Close files" : "Open files",
           icon: "folder",

@@ -19,8 +19,34 @@ export function buildHomeListFilterMenuItems(props: {
   readonly selectedProjectKey: string | null;
   readonly onEnvironmentChange: (environmentId: EnvironmentId | null) => void;
   readonly onProjectChange: (projectKey: string | null) => void;
+  /** Home switches between the project grid and the thread list. */
+  readonly view?: {
+    readonly showingProjects: boolean;
+    readonly onShowProjects: () => void;
+    readonly onShowThreads: () => void;
+  };
 }): AppBarMenuItem[] {
+  const view = props.view;
   const items: AppBarMenuItem[] = [
+    ...(view
+      ? [
+          view.showingProjects
+            ? {
+                id: "view:threads",
+                title: "All threads",
+                subtitle: "Show every thread as a list",
+                icon: "text.bubble",
+                onPress: view.onShowThreads,
+              }
+            : {
+                id: "view:projects",
+                title: "Projects",
+                subtitle: "Show projects as a grid",
+                icon: "square.grid.2x2",
+                onPress: view.onShowProjects,
+              },
+        ]
+      : []),
     {
       id: "environment",
       title: "Environment",

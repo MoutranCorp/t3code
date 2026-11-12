@@ -17,6 +17,8 @@ import {
   TerminalResizeError,
   TerminalSessionLookupError,
   TerminalWriteError,
+  type DiscoveredLocalServer,
+  type TerminalAppStatus,
   type TerminalAttachInput,
   type TerminalAttachStreamEvent,
   type TerminalClearInput,
@@ -43,6 +45,12 @@ import { mergePathEntries } from "@t3tools/shared/shell";
 
 import { acpRegistryManagedBinaryDirectories } from "@t3tools/provider-acp-registry/server";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
+import {
+  normalizeTerminalOutput,
+  TERMINAL_OUTPUT_TAIL_CHARS,
+  terminalOutputPlainText,
+  terminalOutputTail,
+} from "@t3tools/shared/terminalOutput";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Context from "effect/Context";
@@ -238,6 +246,12 @@ export class TerminalManager extends Context.Service<
     readonly subscribeMetadata: (
       listener: (event: TerminalMetadataStreamEvent) => Effect.Effect<void>,
     ) => Effect.Effect<() => void>;
+
+    /** The thread's terminals, newest first, with the URLs each serves and its last output lines. */
+    readonly readThreadApps: (input: {
+      readonly threadId: string;
+      readonly outputLines: number;
+    }) => Effect.Effect<ReadonlyArray<TerminalAppStatus>>;
   }
 >()("t3/terminal/Manager/TerminalManager") {}
 
@@ -423,6 +437,20 @@ function summary(session: TerminalSessionState): TerminalSummary {
     label: terminalWireLabel(session),
     updatedAt: session.updatedAt,
   };
+}
+
+const APP_OUTPUT_MAX_CHARS = 12_000;
+
+/** The last `lines` lines of raw PTY history as plain text, as the terminal shows them. */
+function terminalOutputLines(history: string, lines: number): string {
+  const screen = normalizeTerminalOutput(
+    terminalOutputTail(history, TERMINAL_OUTPUT_TAIL_CHARS).text,
+  ).text;
+  const rendered = terminalOutputPlainText(screen)
+    .split("\n")
+    .map((line) => line.trimEnd());
+  while (rendered.length > 0 && rendered.at(-1) === "") rendered.pop();
+  return terminalOutputTail(rendered.slice(-lines).join("\n"), APP_OUTPUT_MAX_CHARS).text;
 }
 
 function shouldPublishTerminalMetadataEvent(event: TerminalEvent): boolean {
@@ -1442,6 +1470,7 @@ interface TerminalManagerOptions {
     readonly threadId: string;
     readonly terminalId: string;
   }) => Effect.Effect<void>;
+  scanServers?: () => Effect.Effect<ReadonlyArray<DiscoveredLocalServer>>;
   resolveProviderInstanceEnvironment?: (
     providerInstanceId: string,
     env: Record<string, string> | undefined,
@@ -1532,6 +1561,7 @@ export const make = Effect.fn("TerminalManager.make")(function* () {
     managedBinaryToolsDir: path.join(baseDir, "tools"),
     registerTerminalProcesses: portDiscovery.registerTerminalProcesses,
     unregisterTerminal: portDiscovery.unregisterTerminal,
+    scanServers: () => portDiscovery.scan(),
     resolveProviderInstanceEnvironment,
   });
 });
@@ -3067,6 +3097,34 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       ),
     );
 
+  const readThreadApps = Effect.fn("terminal.readThreadApps")(function* (input: {
+    readonly threadId: string;
+    readonly outputLines: number;
+  }) {
+    const [sessions, servers] = yield* Effect.all(
+      [sessionsForThread(input.threadId), options.scanServers?.() ?? Effect.succeed([])],
+      { concurrency: "unbounded" },
+    );
+    return sessions
+      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .map((session): TerminalAppStatus => ({
+        terminalId: session.terminalId,
+        label: terminalWireLabel(session),
+        cwd: session.cwd,
+        commandRunning: session.status === "running" && session.hasRunningSubprocess,
+        shellExited: session.status === "exited" || session.status === "error",
+        exitCode: session.exitCode,
+        urls: servers
+          .filter(
+            (server) =>
+              server.terminal?.threadId === session.threadId &&
+              server.terminal.terminalId === session.terminalId,
+          )
+          .map((server) => server.url),
+        output: terminalOutputLines(session.history.value(), input.outputLines),
+      }));
+  });
+
   const readTerminalMetadata = (input: {
     readonly threadId: string;
     readonly terminalId: string;
@@ -3519,6 +3577,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     closeOnSettle,
     subscribe,
     subscribeMetadata,
+    readThreadApps,
   });
 });
 
