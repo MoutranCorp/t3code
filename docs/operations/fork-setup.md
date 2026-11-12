@@ -9,6 +9,7 @@ From PowerShell in the repository root:
 .\Start-T3Fork.ps1 -Install # First install or after dependency changes
 .\Start-T3Fork.ps1          # Start web client and server
 .\Start-T3Fork.ps1 -Desktop # Start Electron and web development
+.\Start-T3Fork.ps1 -Shortcut # Add "T3 Fork" to the Start menu (runs -Desktop)
 ```
 
 Open the pairing URL printed by the runner. Stop the launcher with Ctrl+C.

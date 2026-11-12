@@ -1,11 +1,25 @@
 param(
     [switch]$Install,
     [switch]$Login,
-    [switch]$Desktop
+    [switch]$Desktop,
+    [switch]$Shortcut
 )
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
+
+if ($Shortcut) {
+    $linkPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'T3 Fork.lnk'
+    $link = (New-Object -ComObject WScript.Shell).CreateShortcut($linkPath)
+    $link.TargetPath = Join-Path $PSHOME 'powershell.exe'
+    $link.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File `"$PSCommandPath`" -Desktop"
+    $link.WorkingDirectory = $PSScriptRoot
+    $link.IconLocation = Join-Path $PSScriptRoot 'assets\prod\t3-black-windows.ico'
+    $link.Description = 'T3 Code fork desktop app'
+    $link.Save()
+    Write-Host "Created $linkPath"
+    exit 0
+}
 $toolRoot = 'P:\.caches\t3-tooling'
 $env:PNPM_HOME = 'P:\.caches\pnpm-home'
 $env:npm_config_cache = 'P:\.caches\npm-cache'
