@@ -13,6 +13,8 @@ From PowerShell in the repository root:
 ```
 
 Open the pairing URL printed by the runner. Stop the launcher with Ctrl+C.
+Developer Tools no longer opens with the desktop app; set `T3CODE_DEV_DEVTOOLS=1`
+before launching to bring it back.
 The launcher stores T3 data and Kimi data below the gitignored `.t3` directory,
 and uses tooling and caches on `P:`. It pins Node and pnpm to the versions in
 this checkout's `package.json`; update the launcher pins when upstream changes them.
