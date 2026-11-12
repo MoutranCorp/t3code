@@ -1,4 +1,4 @@
-import type { ProjectScript } from "@t3tools/contracts";
+import type { ProjectScript, ScopedProjectRef } from "@t3tools/contracts";
 import { create } from "zustand";
 
 import { RUN_START_GRACE_MS, type ProjectRun } from "./components/chat/projectRunControl.logic";
@@ -7,15 +7,42 @@ type ThreadRuns = Readonly<Record<string, ProjectRun>>;
 
 interface ProjectRunStoreState {
   readonly runsByThreadKey: Readonly<Record<string, ThreadRuns>>;
+  /** A run asked for from outside a thread; the project's Run control starts it once. */
+  readonly pendingRunRequest: ScopedProjectRef | null;
 }
 
 const EMPTY_THREAD_RUNS: ThreadRuns = Object.freeze({});
 
 /** Runs started from the Run control, in memory, keyed by thread and script. */
-export const useProjectRunStore = create<ProjectRunStoreState>(() => ({ runsByThreadKey: {} }));
+export const useProjectRunStore = create<ProjectRunStoreState>(() => ({
+  runsByThreadKey: {},
+  pendingRunRequest: null,
+}));
 
 export function selectThreadRuns(state: ProjectRunStoreState, threadKey: string): ThreadRuns {
   return state.runsByThreadKey[threadKey] ?? EMPTY_THREAD_RUNS;
+}
+
+export function selectProjectRunRequested(
+  state: ProjectRunStoreState,
+  project: { readonly environmentId: string; readonly id: string },
+): boolean {
+  const request = state.pendingRunRequest;
+  return request?.environmentId === project.environmentId && request.projectId === project.id;
+}
+
+export function requestProjectRun(projectRef: ScopedProjectRef): void {
+  useProjectRunStore.setState({ pendingRunRequest: projectRef });
+}
+
+/** True only for the first caller of the requested project, so a request runs once. */
+export function takeProjectRunRequest(project: {
+  readonly environmentId: string;
+  readonly id: string;
+}): boolean {
+  if (!selectProjectRunRequested(useProjectRunStore.getState(), project)) return false;
+  useProjectRunStore.setState({ pendingRunRequest: null });
+  return true;
 }
 
 let nextRunId = 0;

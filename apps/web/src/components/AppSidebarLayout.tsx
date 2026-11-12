@@ -7,7 +7,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { useLocation, useRouter, type AnyRouter } from "@tanstack/react-router";
+import { Link, useLocation, useRouter, type AnyRouter } from "@tanstack/react-router";
+import { HouseIcon } from "lucide-react";
 
 import { moveWorkspaceFocus, workspaceAreaProps } from "../lib/workspaceFocus";
 import { isCommandPaletteOpen } from "../commandPaletteBus";
@@ -61,6 +62,7 @@ import {
   useSidebar,
   useSidebarVisibility,
 } from "./ui/sidebar";
+import { Button } from "./ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
@@ -402,6 +404,21 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
             Toggle main sidebar{shortcutLabel ? ` (${shortcutLabel})` : ""}
           </TooltipPopup>
         </Tooltip>
+      ) : null}
+      {/* The sidebar's brand link is off screen while it is collapsed, so Home sits here then. */}
+      {showSidebar ? (
+        <span className="pointer-events-auto ml-1 hidden [-webkit-app-region:no-drag] max-md:flex [[data-sidebar-state=collapsed]_&]:flex">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button render={<Link to="/" />} size="icon-sm" variant="ghost" aria-label="Home" />
+              }
+            >
+              <HouseIcon className="size-4" />
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Home</TooltipPopup>
+          </Tooltip>
+        </span>
       ) : null}
     </div>
   );

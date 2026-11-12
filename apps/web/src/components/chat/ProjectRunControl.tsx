@@ -37,7 +37,14 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
-import { memo, useEffect, useState, type ReactElement, type ReactNode } from "react";
+import {
+  memo,
+  useEffect,
+  useEffectEvent,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import { resolveDiscoveredServerUrl } from "~/browser/browserTargetResolver";
 import { usePreviewAvailable } from "~/browser/previewRuntime";
@@ -54,7 +61,9 @@ import {
   claimProjectRunPreview,
   forgetProjectRun,
   replaceProjectRun,
+  selectProjectRunRequested,
   selectThreadRuns,
+  takeProjectRunRequest,
   useProjectRunStore,
 } from "~/projectRunStore";
 import { previewEnvironment } from "~/state/preview";
@@ -341,6 +350,18 @@ export const ProjectRunControl = memo(function ProjectRunControl(props: ProjectR
     }
     if (!detecting) void detectAndRun();
   };
+
+  const runRequested = useProjectRunStore((state) => selectProjectRunRequested(state, project));
+  const startRequestedRun = useEffectEvent(handleRun);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the run Home asked for, once, when this project's control shows
+  useEffect(() => {
+    if (!runRequested) return;
+    // Run sets state, which an effect body must not do synchronously.
+    const timer = setTimeout(() => {
+      if (takeProjectRunRequest(project)) startRequestedRun();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [project, runRequested]);
 
   const fix = async (exited: ProjectRun) => {
     const tail = exitedOutput
