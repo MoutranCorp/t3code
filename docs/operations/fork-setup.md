@@ -18,6 +18,9 @@ before launching to bring it back.
 The launcher stores T3 data and Kimi data below the gitignored `.t3` directory,
 and uses tooling and caches on `P:`. It pins Node and pnpm to the versions in
 this checkout's `package.json`; update the launcher pins when upstream changes them.
+`-Install` also builds `native/resource-monitor` with a pinned Rust toolchain. Without that
+binary the server detects running terminal commands up to a minute late, which makes the
+Run control show "Starting" or "Exited" for a healthy app.
 
 ## Kimi Plus
 

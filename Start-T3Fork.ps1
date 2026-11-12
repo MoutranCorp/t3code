@@ -21,6 +21,7 @@ if ($Shortcut) {
     exit 0
 }
 $toolRoot = 'P:\.caches\t3-tooling'
+$rustToolchain = '1.95.0'
 $env:PNPM_HOME = 'P:\.caches\pnpm-home'
 $env:npm_config_cache = 'P:\.caches\npm-cache'
 $env:npm_config_manage_package_manager_versions = 'false'
@@ -44,6 +45,10 @@ if (!(Test-Path "$toolRoot\node_modules\node\bin\node.exe")) {
 if ($Install) {
     & pnpm.cmd install --frozen-lockfile --store-dir 'P:\.caches\pnpm-store'
     if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
+    # Without the native monitor the server polls terminal processes with exponential backoff.
+    & rustup.exe toolchain install $rustToolchain --profile minimal
+    & rustup.exe run $rustToolchain cargo build --locked --release --manifest-path native\resource-monitor\Cargo.toml
+    if ($LASTEXITCODE -ne 0) { throw 'Resource monitor build failed.' }
 }
 
 if ($Login) {

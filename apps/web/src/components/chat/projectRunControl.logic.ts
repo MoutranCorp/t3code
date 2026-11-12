@@ -1,11 +1,20 @@
-import type { DiscoveredLocalServer, ProjectScript, ThreadId } from "@t3tools/contracts";
+import type {
+  DiscoveredLocalServer,
+  PreviewSessionSnapshot,
+  ProjectScript,
+  ThreadId,
+} from "@t3tools/contracts";
 import type { TerminalSessionState } from "@t3tools/client-runtime/state/terminal";
 import type { DetectedRunTarget } from "@t3tools/shared/projectRunDetection";
 
+import type { ThreadPreviewState } from "~/previewStateStore";
 import { buildProjectScript, nextProjectScriptId, primaryProjectScript } from "~/projectScripts";
 
-/** The server polls for subprocesses about once a second, so a command that dies sooner is never seen running. */
-export const RUN_START_GRACE_MS = 8_000;
+/**
+ * A command that dies before the subprocess poll sees it never shows as running. Windows reports
+ * the first subprocess several seconds late, and a long Starting beats a false Exited.
+ */
+export const RUN_START_GRACE_MS = 20_000;
 
 /** A run started from the Run control, remembered per thread and script. */
 export interface ProjectRun {
@@ -112,6 +121,30 @@ export function findRunServer(
         server.terminal?.threadId === threadId && server.terminal.terminalId === run.terminalId,
     ) ?? null
   );
+}
+
+function urlOrigin(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/** An open preview tab already on one of the urls' origins, the active tab first, so a rerun reuses it. */
+export function findPreviewTabForUrls(
+  preview: Pick<ThreadPreviewState, "sessions" | "suppressedTabIds" | "activeTabId">,
+  urls: ReadonlyArray<string>,
+): PreviewSessionSnapshot | null {
+  const origins = new Set(urls.map(urlOrigin).filter((origin) => origin !== null));
+  const matches = Object.values(preview.sessions).filter((session) => {
+    if (preview.suppressedTabIds.has(session.tabId) || session.navStatus._tag === "Idle") {
+      return false;
+    }
+    const origin = urlOrigin(session.navStatus.url);
+    return origin !== null && origins.has(origin);
+  });
+  return matches.find((session) => session.tabId === preview.activeTabId) ?? matches[0] ?? null;
 }
 
 /** Scripts with their own preview URL already open it when they run. */

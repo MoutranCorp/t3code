@@ -7,6 +7,7 @@ import {
 import {
   type AtomCommandResult,
   isAtomCommandInterrupted,
+  mapAtomCommandResult,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
@@ -18,6 +19,7 @@ import {
   AuthPreviewOperateScope,
   AuthTerminalOperateScope,
   AuthTerminalReadScope,
+  type DiscoveredLocalServer,
   type ProjectScript,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
@@ -37,12 +39,15 @@ import {
 } from "lucide-react";
 import { memo, useEffect, useState, type ReactElement, type ReactNode } from "react";
 
+import { resolveDiscoveredServerUrl } from "~/browser/browserTargetResolver";
 import { usePreviewAvailable } from "~/browser/previewRuntime";
+import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { getClientSettings } from "~/hooks/useSettings";
 import { randomUUID } from "~/lib/utils";
 import { useThreadDiscoveredPorts } from "~/portDiscoveryState";
+import { readThreadPreviewState, setActivePreviewTab } from "~/previewStateStore";
 import {
   attachProjectRunTerminal,
   beginProjectRun,
@@ -56,9 +61,11 @@ import { previewEnvironment } from "~/state/preview";
 import { useEnvironmentScope } from "~/state/session";
 import { terminalEnvironment } from "~/state/terminal";
 import { useKnownTerminalSessions } from "~/state/terminalSessions";
+import { useRightPanelStore } from "~/rightPanelStore";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useTerminalUiStateStore } from "~/terminalUiStateStore";
 import { openDiscoveredPort } from "../preview/openDiscoveredPort";
+import { previewBridge } from "../preview/previewBridge";
 import { ScriptIcon } from "../projectScriptEditor";
 import { useThreadTerminalActions } from "../terminal/useThreadTerminalActions";
 import { Badge } from "../ui/badge";
@@ -71,6 +78,7 @@ import {
   buildDetectedProjectScripts,
   deriveProjectRunPhase,
   deriveProjectRunView,
+  findPreviewTabForUrls,
   findRunServer,
   noRunTargetPrompt,
   observeProjectRun,
@@ -158,6 +166,7 @@ export const ProjectRunControl = memo(function ProjectRunControl(props: ProjectR
   const terminalActions = useThreadTerminalActions(threadRef);
   const closeDrawerTerminal = useTerminalUiStateStore((state) => state.closeTerminal);
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
+  const adjustPreview = useAtomCommand(previewEnvironment.adjust, { reportFailure: false });
   const canRun = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
   const canReadTerminals = useEnvironmentScope(environmentId, AuthTerminalReadScope);
   const canOperatePreview = useEnvironmentScope(environmentId, AuthPreviewOperateScope);
@@ -221,15 +230,41 @@ export const ProjectRunControl = memo(function ProjectRunControl(props: ProjectR
     }
   }, [runs, terminals, threadKey]);
 
+  /** A rerun reveals and reloads the tab an earlier run left on the same origin. */
+  const showRunPreview = async (
+    server: DiscoveredLocalServer,
+  ): Promise<AtomCommandResult<void, unknown>> => {
+    const preview = readThreadPreviewState(threadRef);
+    const existing = findPreviewTabForUrls(preview, [
+      server.url,
+      resolveDiscoveredServerUrl(environmentId, server.url),
+    ]);
+    if (!existing) return openDiscoveredPort({ threadRef, port: server, openPreview });
+    setActivePreviewTab(threadRef, existing.tabId);
+    useRightPanelStore.getState().openBrowser(threadRef, existing.tabId);
+    if (existing.runtime === "server") {
+      const reloaded = await adjustPreview({
+        environmentId,
+        input: { threadId, tabId: existing.tabId, hardReload: true },
+      });
+      return mapAtomCommandResult(reloaded, () => undefined);
+    }
+    // A tab whose webview is not mounted yet loads its URL when revealed.
+    await previewBridge
+      ?.hardReload(previewRuntimeTabId(threadRef, preview.serverEpoch, existing.tabId))
+      .catch(() => undefined);
+    return AsyncResult.success(undefined);
+  };
+
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- opens the preview once when discovery attributes a server to the run's terminal
   useEffect(() => {
     if (!previewRun || !previewServer || !claimProjectRunPreview(threadKey, previewRun)) return;
-    void openDiscoveredPort({ threadRef, port: previewServer, openPreview }).then((result) => {
+    void showRunPreview(previewServer).then((result) => {
       if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
         reportFailure("Could not open preview", squashAtomCommandFailure(result));
       }
     });
-  }, [previewRun, previewServer, threadKey, threadRef, openPreview]);
+  }, [previewRun, previewServer, threadKey, showRunPreview]);
 
   const startRun = async (script: ProjectScript, options?: RunScriptOptions) => {
     const runId = beginProjectRun(threadKey, script);

@@ -1,4 +1,9 @@
-import { ThreadId, type DiscoveredLocalServer, type ProjectScript } from "@t3tools/contracts";
+import {
+  ThreadId,
+  type DiscoveredLocalServer,
+  type PreviewSessionSnapshot,
+  type ProjectScript,
+} from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -6,6 +11,7 @@ import {
   buildRunDetectionFiles,
   deriveProjectRunPhase,
   deriveProjectRunView,
+  findPreviewTabForUrls,
   findRunServer,
   observeProjectRun,
   type ProjectRun,
@@ -194,6 +200,58 @@ describe("findRunServer", () => {
     expect(findRunServer(servers, threadId, run())?.port).toBe(5173);
     expect(findRunServer(servers, threadId, run({ terminalId: "terminal-3" }))).toBeNull();
     expect(findRunServer(servers, ThreadId.make("other"), run())).toBeNull();
+  });
+});
+
+describe("findPreviewTabForUrls", () => {
+  const tab = (tabId: string, url: string | null): PreviewSessionSnapshot =>
+    ({
+      threadId: "thread-1",
+      tabId,
+      navStatus:
+        url === null
+          ? { _tag: "Idle" }
+          : { _tag: "LoadFailed", url, title: "", code: -102, description: "refused" },
+      canGoBack: false,
+      canGoForward: false,
+    }) as PreviewSessionSnapshot;
+  const preview = (
+    tabs: ReadonlyArray<PreviewSessionSnapshot>,
+    options: { activeTabId?: string; suppressed?: ReadonlyArray<string> } = {},
+  ) => ({
+    sessions: Object.fromEntries(tabs.map((entry) => [entry.tabId, entry])),
+    suppressedTabIds: new Set(options.suppressed ?? []),
+    activeTabId: options.activeTabId ?? null,
+  });
+
+  it("reuses a tab left on the same origin, even on another path", () => {
+    const tabs = [tab("docs", "https://example.com/"), tab("app", "http://localhost:4517/about")];
+    expect(findPreviewTabForUrls(preview(tabs), ["http://localhost:4517/"])?.tabId).toBe("app");
+  });
+
+  it("prefers the active tab and skips blank and closed tabs", () => {
+    const tabs = [
+      tab("blank", null),
+      tab("closed", "http://localhost:4517/"),
+      tab("first", "http://localhost:4517/"),
+      tab("active", "http://localhost:4517/"),
+    ];
+    expect(
+      findPreviewTabForUrls(preview(tabs, { activeTabId: "active", suppressed: ["closed"] }), [
+        "http://localhost:4517/",
+      ])?.tabId,
+    ).toBe("active");
+    expect(
+      findPreviewTabForUrls(preview(tabs, { suppressed: ["closed"] }), ["http://localhost:4517/"])
+        ?.tabId,
+    ).toBe("first");
+  });
+
+  it("opens a new tab for another port or an unparseable url", () => {
+    const tabs = [tab("app", "http://localhost:4517/")];
+    expect(
+      findPreviewTabForUrls(preview(tabs), ["http://localhost:3000/", "not a url"]),
+    ).toBeNull();
   });
 });
 
