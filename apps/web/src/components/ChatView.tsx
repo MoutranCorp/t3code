@@ -299,6 +299,7 @@ import {
 } from "./chat/PanelLayoutControls";
 import type { ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ThreadDetailsPanel } from "./chat/ThreadDetailsPanel";
+import { ProjectRunControl } from "./chat/ProjectRunControl";
 import { NoActiveThreadState } from "./NoActiveThreadState";
 import {
   resolveEffectiveEnvMode,
@@ -1915,6 +1916,7 @@ export default function ChatView(props: ChatViewProps) {
   });
   const {
     saveProjectScript: saveProjectScriptStable,
+    addProjectScripts: addProjectScriptsStable,
     updateProjectScript: updateProjectScriptStable,
     deleteProjectScript: deleteProjectScriptStable,
   } = useProjectScriptEditing({
@@ -3337,6 +3339,19 @@ export default function ChatView(props: ChatViewProps) {
                 ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }
                 : {})}
               {...(threadFindEnabled ? { onFindInThread: openThreadFindStable } : {})}
+              trailingControls={
+                activeProject && !activeProject.isScratch && activeThreadRef && gitCwd ? (
+                  <ProjectRunControl
+                    threadRef={activeThreadRef}
+                    project={activeProject}
+                    cwd={gitCwd}
+                    scripts={activeProjectScripts}
+                    preferredScriptId={lastInvokedScriptByProjectId[activeProject.id] ?? null}
+                    onRunScript={runProjectScriptStable}
+                    onAddScripts={addProjectScriptsStable}
+                  />
+                ) : null
+              }
             />
           </header>
         )}

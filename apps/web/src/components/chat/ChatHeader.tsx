@@ -18,6 +18,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from "react";
 import { isTrailingDoubleClick } from "../Sidebar.logic";
 import { Badge } from "../ui/badge";
@@ -56,6 +57,7 @@ interface ChatHeaderProps {
   onNewThreadInProject: () => void;
   onOpenProjectSettings?: (() => void) | undefined;
   onFindInThread?: ((threadRef: ScopedThreadRef) => void) | undefined;
+  trailingControls?: ReactNode;
 }
 
 function resolveRenameCommit(input: {
@@ -81,6 +83,7 @@ export const ChatHeader = memo(function ChatHeader({
   onNewThreadInProject,
   onOpenProjectSettings,
   onFindInThread,
+  trailingControls,
 }: ChatHeaderProps) {
   const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
   const activeProjectCwd = activeProject?.workspaceRoot ?? null;
@@ -248,7 +251,7 @@ export const ChatHeader = memo(function ChatHeader({
     <div
       ref={breadcrumbContainerRef}
       className={cn(
-        "flex min-w-0 flex-1 items-center gap-2 sm:gap-3",
+        "@container/chat-header flex min-w-0 flex-1 items-center gap-2 sm:gap-3",
         rightPanelOpen ? "pr-10" : "pr-24",
       )}
       onContextMenu={handleHeaderContextMenu}
@@ -394,6 +397,7 @@ export const ChatHeader = memo(function ChatHeader({
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
       {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
+      {trailingControls}
     </div>
   );
 });

@@ -175,6 +175,10 @@
       "types": "./src/t3ProjectFile.ts",
       "import": "./src/t3ProjectFile.ts"
     },
+    "./projectRunDetection": {
+      "types": "./src/projectRunDetection.ts",
+      "import": "./src/projectRunDetection.ts"
+    },
     "./orchestrationTiming": {
       "types": "./src/orchestrationTiming.ts",
       "import": "./src/orchestrationTiming.ts"

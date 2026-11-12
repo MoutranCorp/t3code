@@ -204,6 +204,21 @@ export function useProjectScriptEditing(input: {
       keybindingCommand: commandForProjectScript(nextId),
     });
   };
+  const addProjectScripts = async (
+    newScripts: ReadonlyArray<ProjectScript>,
+  ): Promise<AtomCommandResult<void, unknown>> => {
+    if (!project) {
+      return AsyncResult.success(undefined);
+    }
+    return persistProjectScripts({
+      projectId: project.id,
+      projectCwd: project.workspaceRoot,
+      previousScripts: scripts,
+      nextScripts: [...scripts, ...newScripts],
+      keybinding: undefined,
+      keybindingCommand: null,
+    });
+  };
   const updateProjectScript = async (
     scriptId: string,
     input: NewProjectScriptInput,
@@ -267,6 +282,7 @@ export function useProjectScriptEditing(input: {
   };
   return {
     saveProjectScript: useStableCallback(saveProjectScript),
+    addProjectScripts: useStableCallback(addProjectScripts),
     updateProjectScript: useStableCallback(updateProjectScript),
     deleteProjectScript: useStableCallback(deleteProjectScript),
   };

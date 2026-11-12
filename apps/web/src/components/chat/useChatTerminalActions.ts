@@ -207,6 +207,8 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       preferNewTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
       shellHistory?: "preserve" | "suppress";
+      /** Typed and run before the script's command, as a separate line. */
+      setupCommand?: string;
     },
   ) => {
     if (!hasTerminalWriteAccess() || !activeThreadId || !activeProject || !activeThread) return;
@@ -273,12 +275,21 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       return;
     }
 
-    const writeResult = await terminalActions.writeToTerminal(
-      targetTerminalId,
-      options?.shellHistory === "preserve"
-        ? `${script.command}\r`
-        : projectScriptTerminalInput(script.command),
-    );
+    const setupResult = options?.setupCommand
+      ? await terminalActions.writeToTerminal(
+          targetTerminalId,
+          projectScriptTerminalInput(options.setupCommand),
+        )
+      : null;
+    const writeResult =
+      setupResult?._tag === "Failure"
+        ? setupResult
+        : await terminalActions.writeToTerminal(
+            targetTerminalId,
+            options?.shellHistory === "preserve"
+              ? `${script.command}\r`
+              : projectScriptTerminalInput(script.command),
+          );
     if (!writeResult) return;
     if (writeResult._tag === "Failure") {
       if (!isAtomCommandInterrupted(writeResult)) {
@@ -311,6 +322,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         );
       }
     }
+    return targetTerminalId;
   };
   const runProjectScriptStable = useStableCallback(runProjectScript);
 
