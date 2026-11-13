@@ -1,6 +1,6 @@
 import type { SnapShotSource } from "@t3tools/contracts";
 
-import type { ComposerFileAttachment } from "../../composerDraftStore";
+import type { ComposerFileAttachment, ComposerImageAttachment } from "../../composerDraftStore";
 import { type ChatFileAttachment, type ChatImageAttachment, isVideoAttachment } from "../../types";
 import type {
   AssetCreateUrlResult,
@@ -31,7 +31,18 @@ export interface ExpandedImageItem {
   originalUrl?: string;
   srcFragment?: string;
   actionsSource?: MediaActionSource;
+  /** Present only while the image is still an editable composer attachment. */
+  annotation?: ExpandedImageAnnotation;
 }
+
+export interface ExpandedImageAnnotation {
+  readonly file: File;
+  readonly save: (file: File) => Promise<ExpandedImageAnnotationResult>;
+}
+
+export type ExpandedImageAnnotationResult =
+  | { readonly ok: true; readonly item: ExpandedImageItem }
+  | { readonly ok: false; readonly message: string };
 
 export interface ExpandedImagePreview {
   images: ExpandedImageItem[];
@@ -159,9 +170,30 @@ export function attachVideoThumbnail(video: HTMLVideoElement, file: File): () =>
   return () => URL.revokeObjectURL(url);
 }
 
+export function expandedComposerImageItem(
+  image: ComposerImageAttachment,
+  annotate: (image: ComposerImageAttachment) => ExpandedImageAnnotation | undefined,
+): ExpandedImageItem {
+  const annotation = annotate(image);
+  return {
+    src: image.previewUrl,
+    name: image.name,
+    mimeType: image.mimeType,
+    ...(image.source?.kind === "snap-shot" ? { source: image.source } : {}),
+    ...(annotation ? { annotation } : {}),
+  };
+}
+
+function isComposerImage(
+  image: ChatImageAttachment | ComposerFileAttachment,
+): image is ComposerImageAttachment {
+  return image.type === "image" && "file" in image && image.file instanceof File;
+}
+
 export function buildExpandedImagePreview(
   images: ReadonlyArray<ChatImageAttachment | ComposerFileAttachment>,
   selectedImageId: string,
+  annotate?: (image: ComposerImageAttachment) => ExpandedImageAnnotation | undefined,
 ): ExpandedImagePreview | null {
   const selected = images.find((image) => image.id === selectedImageId);
   if (selected?.type === "file" && selected.file && isVideoAttachment(selected)) {
@@ -178,17 +210,7 @@ export function buildExpandedImagePreview(
     };
   }
   const previewableImages = images.flatMap((image) =>
-    image.type === "image" && image.previewUrl
-      ? [
-          {
-            id: image.id,
-            src: image.previewUrl,
-            name: image.name,
-            mimeType: image.mimeType,
-            source: image.source,
-          },
-        ]
-      : [],
+    image.type === "image" && image.previewUrl ? [image] : [],
   );
   if (previewableImages.length === 0) {
     return null;
@@ -198,12 +220,16 @@ export function buildExpandedImagePreview(
     return null;
   }
   return {
-    images: previewableImages.map((image) => ({
-      src: image.src,
-      name: image.name,
-      mimeType: image.mimeType,
-      ...(image.source?.kind === "snap-shot" ? { source: image.source } : {}),
-    })),
+    images: previewableImages.map((image) =>
+      annotate && isComposerImage(image)
+        ? expandedComposerImageItem(image, annotate)
+        : {
+            src: image.previewUrl ?? null,
+            name: image.name,
+            mimeType: image.mimeType,
+            ...(image.source?.kind === "snap-shot" ? { source: image.source } : {}),
+          },
+    ),
     index: selectedIndex,
   };
 }

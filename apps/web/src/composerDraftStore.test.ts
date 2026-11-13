@@ -284,6 +284,50 @@ describe("composerDraftStore addImages", () => {
     expect(draft?.images.map((image) => image.id)).toEqual(["img-a"]);
     expect(revokeSpy).toHaveBeenCalledWith("blob:b");
   });
+
+  it("replaces an image's bytes in place and drops its stale persisted copy", () => {
+    const store = useComposerDraftStore.getState();
+    store.addImages(threadRef, [
+      makeImage({ id: "img-a", previewUrl: "blob:a", name: "a.png" }),
+      makeImage({ id: "img-b", previewUrl: "blob:b", name: "b.png" }),
+    ]);
+    const key = threadKeyFor(threadId, TEST_ENVIRONMENT_ID);
+    useComposerDraftStore.setState((state) => ({
+      draftsByThreadKey: {
+        ...state.draftsByThreadKey,
+        [key]: {
+          ...state.draftsByThreadKey[key]!,
+          persistedAttachments: ["img-a", "img-b"].map((id) => ({
+            id,
+            name: `${id}.png`,
+            mimeType: "image/png",
+            sizeBytes: 4,
+            dataUrl: "data:image/png;base64,AQEBAQ==",
+          })),
+        },
+      },
+    }));
+
+    const annotated = makeImage({
+      id: "img-a",
+      previewUrl: "blob:a2",
+      name: "a.png",
+      sizeBytes: 8,
+    });
+    expect(store.replaceImage(threadRef, annotated)).toBe(true);
+
+    const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
+    expect(draft?.images.map((image) => [image.id, image.previewUrl])).toEqual([
+      ["img-a", "blob:a2"],
+      ["img-b", "blob:b"],
+    ]);
+    expect(draft?.images[0]?.file).toBe(annotated.file);
+    expect(draft?.persistedAttachments.map((attachment) => attachment.id)).toEqual(["img-b"]);
+    expect(revokeSpy).toHaveBeenCalledWith("blob:a");
+    expect(store.replaceImage(threadRef, makeImage({ id: "gone", previewUrl: "blob:x" }))).toBe(
+      false,
+    );
+  });
 });
 
 describe("composerDraftStore copied attachments", () => {

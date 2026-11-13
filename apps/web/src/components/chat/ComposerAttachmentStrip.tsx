@@ -39,6 +39,7 @@ import type { PreparingComposerImage } from "./preparingComposerImages";
 import {
   attachVideoThumbnail,
   buildExpandedImagePreview,
+  type ExpandedImageAnnotation,
   type ExpandedImagePreview,
 } from "./ExpandedImagePreview";
 import { PierreEntryIcon } from "./PierreEntryIcon";
@@ -149,6 +150,7 @@ export function ComposerAttachmentMediaRow({
   attachmentDraftTarget,
   canOperateThread,
   onExpandImage,
+  annotateImage,
   onFileOpen,
   onRemoveImage,
   onRemoveFile,
@@ -168,6 +170,7 @@ export function ComposerAttachmentMediaRow({
   readonly attachmentDraftTarget: ScopedThreadRef | DraftId;
   readonly canOperateThread: boolean;
   readonly onExpandImage: (preview: ExpandedImagePreview) => void;
+  readonly annotateImage: (image: ComposerImageAttachment) => ExpandedImageAnnotation | undefined;
   readonly onFileOpen: (attachment: ChatFileAttachment) => void;
   readonly onRemoveImage: (imageId: string) => void;
   readonly onRemoveFile: (fileId: string) => void;
@@ -224,7 +227,7 @@ export function ComposerAttachmentMediaRow({
                   aria-label={`Preview ${image.name}`}
                   disabled={!ready}
                   onClick={() => {
-                    const preview = buildExpandedImagePreview(images, image.id);
+                    const preview = buildExpandedImagePreview(images, image.id, annotateImage);
                     if (!preview) return;
                     onExpandImage(preview);
                   }}
@@ -586,12 +589,14 @@ export function ComposerRestingImagePreviews({
   allImages,
   resolvedTheme,
   onExpandImage,
+  annotateImage,
   onShowMore,
 }: {
   readonly images: ReadonlyArray<ComposerImageAttachment>;
   readonly allImages: ReadonlyArray<ComposerImageAttachment>;
   readonly resolvedTheme: "light" | "dark";
   readonly onExpandImage: (preview: ExpandedImagePreview) => void;
+  readonly annotateImage: (image: ComposerImageAttachment) => ExpandedImageAnnotation | undefined;
   readonly onShowMore: () => void;
 }) {
   const counts = getRestingComposerImagePreviewCounts(images.length);
@@ -606,7 +611,7 @@ export function ComposerRestingImagePreviews({
           aria-label={`Preview ${image.name}`}
           onPointerDown={(event) => event.preventDefault()}
           onClick={() => {
-            const preview = buildExpandedImagePreview(allImages, image.id);
+            const preview = buildExpandedImagePreview(allImages, image.id, annotateImage);
             if (preview) onExpandImage(preview);
           }}
         >

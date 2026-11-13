@@ -573,6 +573,11 @@ interface ComposerDraftStoreState {
     options?: { allowDuplicates?: boolean },
   ) => string[];
   removeImage: (threadRef: ComposerThreadTarget, imageId: string) => void;
+  /**
+   * Swaps an image's bytes in place, keeping its id (and so its inline chips) and strip position.
+   * The caller releases the old upload. Returns false when the image is no longer in the draft.
+   */
+  replaceImage: (threadRef: ComposerThreadTarget, image: ComposerImageAttachment) => boolean;
   /** Returns the ids of files appended; a re-pick that replaces a marker is not listed. */
   addFiles: (
     threadRef: ComposerThreadTarget,
@@ -3418,6 +3423,32 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             }
             return { draftsByThreadKey: nextDraftsByThreadKey };
           });
+        },
+        replaceImage: (threadRef, image) => {
+          const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
+          const previous = get().draftsByThreadKey[threadKey]?.images.find(
+            (entry) => entry.id === image.id,
+          );
+          if (!previous) return false;
+          set((state) => {
+            const current = state.draftsByThreadKey[threadKey];
+            if (!current) return state;
+            return {
+              draftsByThreadKey: {
+                ...state.draftsByThreadKey,
+                [threadKey]: {
+                  ...current,
+                  images: current.images.map((entry) => (entry.id === image.id ? image : entry)),
+                  // Persisted bytes are reused by id, so drop the stale copy to re-serialize.
+                  persistedAttachments: current.persistedAttachments.filter(
+                    (attachment) => attachment.id !== image.id,
+                  ),
+                },
+              },
+            };
+          });
+          if (previous.previewUrl !== image.previewUrl) revokeObjectPreviewUrl(previous.previewUrl);
+          return true;
         },
         addFiles: (threadRef, files, options) => {
           const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";

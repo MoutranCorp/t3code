@@ -1,6 +1,13 @@
 import { memo, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
-import { ChevronLeftIcon, ChevronRightIcon, XIcon, ImageIcon, TextIcon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  XIcon,
+  ImageIcon,
+  PencilIcon,
+  TextIcon,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import type { ExpandedImageItem, ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -25,6 +32,7 @@ import { expandedImageKey } from "./ExpandedImagePreview";
 import { registerThreadOverlay } from "./threadOverlayRetention";
 import { mediaReferenceFileName } from "@t3tools/client-runtime/media-reference";
 import { mediaMimeType, mediaMimeTypeFromExtension } from "@t3tools/shared/mediaPreview";
+import { ImageAnnotator, type ImageAnnotatorHandle } from "./ImageAnnotator";
 
 interface ExpandedImageDialogProps {
   preview: ExpandedImagePreview;
@@ -85,6 +93,13 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
   const [accessibilityDetailsSrc, setAccessibilityDetailsSrc] = useState<string | null>(null);
   const zoomableImageRef = useRef<ZoomableImageHandle>(null);
+  const annotatorRef = useRef<ImageAnnotatorHandle>(null);
+  const annotateButtonRef = useRef<HTMLButtonElement>(null);
+  const [annotating, setAnnotating] = useState(false);
+  // A saved markup replaces the composer attachment; the opened preview still holds the old one.
+  const [savedItems, setSavedItems] = useState<ReadonlyMap<number, ExpandedImageItem>>(
+    () => new Map(),
+  );
   const [returnFocus] = useState(() => {
     const target = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return { target, focusVisible: target?.matches(":focus-visible") ?? false };
@@ -97,11 +112,20 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
     const { target, focusVisible } = returnFocus;
     if (target?.isConnected) target.focus({ preventScroll: true, focusVisible });
   };
+  // Unsaved marks get a chance to be kept before the viewer closes.
+  const requestClose = () => {
+    if (annotating && annotatorRef.current) annotatorRef.current.requestClose();
+    else close();
+  };
+  const leaveAnnotating = () => {
+    flushSync(() => setAnnotating(false));
+    annotateButtonRef.current?.focus({ preventScroll: true });
+  };
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const imageCount = preview.images.length;
   const index =
     imageCount > 0 ? (((preview.index + imageOffset) % imageCount) + imageCount) % imageCount : 0;
-  const item = preview.images[index];
+  const item = savedItems.get(index) ?? preview.images[index];
   const source: MediaActionSource = item?.actionsSource ?? {
     kind: item?.type === "video" ? "video" : "image",
     name: item?.name ?? "Media",
@@ -123,7 +147,12 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.defaultPrevented || isContextMenuOpen() || event.target instanceof HTMLVideoElement)
+    if (
+      annotating ||
+      event.defaultPrevented ||
+      isContextMenuOpen() ||
+      event.target instanceof HTMLVideoElement
+    )
       return;
     if (zoomableImageRef.current?.pan(event.key)) {
       event.preventDefault();
@@ -152,6 +181,13 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
   const accessibilityDetails = item.source ? snapShotAccessibilityDetails(item.source) : undefined;
   const showingAccessibilityDetails =
     Boolean(accessibilityDetails) && accessibilityDetailsSrc === item.src;
+  const annotation =
+    item.type !== "video" &&
+    !showingAccessibilityDetails &&
+    item.src !== null &&
+    failedImageSrc !== item.src
+      ? item.annotation
+      : undefined;
   const contentsLabel = showingAccessibilityDetails
     ? "Show screenshot"
     : accessibilityDetails?.format === "json"
@@ -168,6 +204,12 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
           eventDetails.cancel();
           return;
         }
+        if (annotating && annotatorRef.current) {
+          eventDetails.cancel();
+          if (eventDetails.reason === "escape-key") annotatorRef.current.escape();
+          else annotatorRef.current.requestClose();
+          return;
+        }
         close();
       }}
     >
@@ -181,7 +223,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
         initialFocus={closeButtonRef}
         finalFocus={() => returnFocus.target}
         onClick={(event) => {
-          if (event.target === event.currentTarget) close();
+          if (event.target === event.currentTarget) requestClose();
         }}
       >
         <DialogTitle className="sr-only">Expanded {mediaLabel} preview</DialogTitle>
@@ -191,12 +233,12 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
           size="icon-sm"
           variant="media-close"
           className="absolute right-0 top-0 z-20"
-          onClick={close}
+          onClick={requestClose}
           aria-label={`Close ${mediaLabel} preview`}
         >
           <XIcon />
         </Button>
-        {preview.images.length > 1 && (
+        {preview.images.length > 1 && !annotating && (
           <Button
             type="button"
             size="icon"
@@ -228,6 +270,21 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
                 </p>
                 {openOriginalLink}
               </ExpandedMediaFailure>
+            ) : annotating && annotation ? (
+              <ImageAnnotator
+                ref={annotatorRef}
+                src={item.src}
+                name={item.name}
+                annotation={annotation}
+                onSaved={(saved) => {
+                  setSavedItems((current) => new Map(current).set(index, saved));
+                  leaveAnnotating();
+                }}
+                onExit={(exit) => {
+                  if (exit === "close") close();
+                  else leaveAnnotating();
+                }}
+              />
             ) : (
               <ZoomableImage
                 ref={zoomableImageRef}
@@ -243,7 +300,21 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
                 {item.name}
                 {preview.images.length > 1 ? ` (${index + 1}/${preview.images.length})` : ""}
               </span>
-              {accessibilityDetails && item.source ? (
+              {annotation && !annotating ? (
+                <Button
+                  ref={annotateButtonRef}
+                  size="xs"
+                  variant="overlay"
+                  onClick={() => {
+                    flushSync(() => setAnnotating(true));
+                    annotatorRef.current?.focus();
+                  }}
+                >
+                  <PencilIcon aria-hidden="true" />
+                  Annotate
+                </Button>
+              ) : null}
+              {annotating ? null : accessibilityDetails && item.source ? (
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -272,7 +343,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
             </div>
           </div>
         </MediaActions>
-        {preview.images.length > 1 && (
+        {preview.images.length > 1 && !annotating && (
           <Button
             type="button"
             size="icon"

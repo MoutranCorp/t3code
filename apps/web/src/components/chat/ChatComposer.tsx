@@ -218,8 +218,11 @@ import { useApplyThreadModelPick } from "./useApplyThreadModelPick";
 import {
   buildAttachmentVideoPreview,
   buildExpandedImagePreview,
+  type ExpandedImageAnnotation,
   type ExpandedImagePreview,
+  expandedComposerImageItem,
 } from "./ExpandedImagePreview";
+import { replaceComposerImage } from "./composerImageAnnotation";
 import { cn, isMacPlatform, randomUUID } from "~/lib/utils";
 import {
   getComposerPromptLengthValidationMessage,
@@ -699,12 +702,30 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const openPrLink = useOpenPrLink(routeThreadRef);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const previewFile = composerFiles.find((file) => file.id === previewFileId);
+  const annotateComposerImage = (
+    image: ComposerImageAttachment,
+  ): ExpandedImageAnnotation | undefined =>
+    questionAttachmentTarget && activePendingIsResponding
+      ? undefined
+      : {
+          file: image.file,
+          save: async (file) => {
+            const result = await replaceComposerImage({
+              draftTarget: attachmentDraftTarget,
+              imageId: image.id,
+              file,
+            });
+            return result.ok
+              ? { ok: true, item: expandedComposerImageItem(result.image, annotateComposerImage) }
+              : result;
+          },
+        };
   const composerContextActions = {
     environmentId,
     cwd: gitCwd ?? undefined,
     projectId: activeProjectId ?? undefined,
     expandImage: (imageId: string) => {
-      const preview = buildExpandedImagePreview(composerImages, imageId);
+      const preview = buildExpandedImagePreview(composerImages, imageId, annotateComposerImage);
       if (preview) onExpandImage(preview);
     },
     openFile: setPreviewFileId,
@@ -2392,6 +2413,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         allImages={composerImages}
         resolvedTheme={resolvedTheme}
         onExpandImage={onExpandImage}
+        annotateImage={annotateComposerImage}
         onShowMore={expandMobileComposer}
       />
     ) : null;
@@ -3206,6 +3228,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         attachmentDraftTarget={attachmentDraftTarget}
         canOperateThread={canOperateThread}
         onExpandImage={onExpandImage}
+        annotateImage={annotateComposerImage}
         onFileOpen={onFileOpen}
         onRemoveImage={removeComposerImage}
         onRemoveFile={removeComposerFileFromDraft}
