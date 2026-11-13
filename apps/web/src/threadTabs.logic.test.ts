@@ -2,11 +2,15 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   adjacentThreadTab,
+  clampSplitRatio,
   closeThreadTabs,
   EMPTY_THREAD_TABS,
   moveThreadTab,
   mostRecentThreadTab,
+  resolveSplitTabKey,
+  sanitizeSplitRatio,
   sanitizeThreadTabsState,
+  showThreadTabInSplit,
   takeClosedThreadTab,
   type ThreadTabsState,
   type ThreadTabTarget,
@@ -51,6 +55,24 @@ describe("visitThreadTab", () => {
     expect(keys(state)).not.toContain("env:t0");
     expect(state.recent[0]).toBe("env:t40");
   });
+
+  it("swaps panes when the route moves onto the second pane's tab", () => {
+    const split = showThreadTabInSplit(visitAll(thread("a"), thread("b")), "env:a");
+    expect(visitThreadTab(split, thread("a"), "env:b").split).toBe("env:b");
+    // The tab the route left cannot go to the second pane, so the split closes.
+    const withDraft = visitThreadTab(split, draft("d", "x"), "env:b");
+    expect(visitThreadTab(withDraft, thread("a"), "draft:d").split).toBeNull();
+  });
+});
+
+describe("resolveSplitTabKey", () => {
+  it("shows the tab the route left while the route is on the split's tab", () => {
+    expect(resolveSplitTabKey("env:a", "env:b", null)).toBe("env:a");
+    expect(resolveSplitTabKey("env:a", "env:a", "env:b")).toBe("env:b");
+    expect(resolveSplitTabKey("env:a", "env:a", "draft:d")).toBeNull();
+    expect(resolveSplitTabKey("env:a", "env:a", null)).toBeNull();
+    expect(resolveSplitTabKey(null, "env:a", "env:b")).toBeNull();
+  });
 });
 
 describe("closeThreadTabs", () => {
@@ -74,6 +96,28 @@ describe("closeThreadTabs", () => {
   it("skips hidden tabs when picking the neighbour", () => {
     // env:c is open but hidden, such as an archived thread.
     expect(closeThreadTabs(state, ["env:b"], ["env:a", "env:b"], "env:b").next?.key).toBe("env:a");
+  });
+
+  it("keeps the main pane off the second pane's tab, and promotes it as the last one left", () => {
+    const split = showThreadTabInSplit(state, "env:c");
+    const result = closeThreadTabs(split, ["env:b"], shown, "env:b");
+    expect(result.next?.key).toBe("env:a");
+    expect(result.state.split).toBe("env:c");
+    const last = closeThreadTabs(split, ["env:a", "env:b"], shown, "env:b");
+    expect(last.next?.key).toBe("env:c");
+    expect(last.state.split).toBeNull();
+  });
+
+  it("moves a closing second pane to a neighbour it can show, or closes it", () => {
+    const withDraft = visitThreadTab(state, draft("d", "x"));
+    const split = showThreadTabInSplit(withDraft, "env:b");
+    const shownWithDraft = [...shown, "draft:d"];
+    // Not env:a, which the main pane shows, and never a draft.
+    expect(closeThreadTabs(split, ["env:b"], shownWithDraft, "env:a").state.split).toBe("env:c");
+    expect(
+      closeThreadTabs(split, ["env:b", "env:c"], shownWithDraft, "env:a").state.split,
+    ).toBeNull();
+    expect(closeThreadTabs(split, ["env:b"], shownWithDraft, "env:a").next).toBeUndefined();
   });
 });
 
@@ -107,6 +151,27 @@ describe("moveThreadTab and adjacentThreadTab", () => {
   });
 });
 
+describe("showThreadTabInSplit and split ratios", () => {
+  it("opens only a thread tab in the second pane and brings it forward", () => {
+    const state = visitAll(thread("a"), draft("d", "x"));
+    expect(showThreadTabInSplit(state, "draft:d")).toBe(state);
+    expect(showThreadTabInSplit(state, "env:gone")).toBe(state);
+    const split = showThreadTabInSplit(state, "env:a");
+    expect(split.split).toBe("env:a");
+    expect(split.recent[0]).toBe("env:a");
+  });
+
+  it("keeps both panes at their minimum width, and evens them when both cannot fit", () => {
+    expect(clampSplitRatio(0.1, 1000, 300)).toBe(0.3);
+    expect(clampSplitRatio(0.9, 1000, 300)).toBe(0.7);
+    expect(clampSplitRatio(0.6, 1000, 300)).toBe(0.6);
+    expect(clampSplitRatio(0.2, 500, 300)).toBe(0.5);
+    expect(sanitizeSplitRatio(0.95)).toBe(0.5);
+    expect(sanitizeSplitRatio("0.4")).toBe(0.5);
+    expect(sanitizeSplitRatio(0.4)).toBe(0.4);
+  });
+});
+
 describe("sanitizeThreadTabsState", () => {
   it("drops malformed and duplicate tabs and recents of tabs that are not open", () => {
     expect(
@@ -120,6 +185,7 @@ describe("sanitizeThreadTabsState", () => {
         ],
         recent: ["draft:d", "env:gone", 3],
         closed: [{ target: thread("a") }, { target: thread("z") }],
+        split: "draft:d",
       }),
     ).toEqual({
       tabs: [
@@ -128,7 +194,11 @@ describe("sanitizeThreadTabsState", () => {
       ],
       recent: ["draft:d"],
       closed: [{ key: "env:z", target: thread("z") }],
+      split: null,
     });
+    expect(sanitizeThreadTabsState({ tabs: [{ target: thread("a") }], split: "env:a" }).split).toBe(
+      "env:a",
+    );
     expect(sanitizeThreadTabsState(null)).toBe(EMPTY_THREAD_TABS);
   });
 });

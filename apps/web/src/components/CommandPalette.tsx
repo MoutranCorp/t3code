@@ -57,9 +57,11 @@ import {
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
+  ArrowLeftRightIcon,
   ArrowRightIcon,
   BugIcon,
   ChartNoAxesColumnIcon,
+  Columns2Icon,
   CheckIcon,
   ChevronRightIcon,
   CornerLeftUpIcon,
@@ -144,6 +146,7 @@ import {
   useHiddenThreadKeys,
   useEnvironmentThreadRefs,
   useProjects,
+  useQuietThreadShell,
   useServerConfigs,
   useVisibleThreadShells,
   waitForProject,
@@ -187,6 +190,7 @@ import { buildThreadRouteParams } from "../threadRoutes";
 import { dispatchMenuAction } from "../shortcuts/dispatcher";
 import { useThreadTabsStore } from "../threadTabsStore";
 import { openProjectFromTabs } from "./tabs/openProjectFromTabs";
+import { readFocusedPane, useFocusedSplitThreadRef } from "./tabs/threadTabNavigation";
 import { ProjectFavicon } from "./ProjectFavicon";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
@@ -388,8 +392,14 @@ function CommandPaletteDialog(props: {
         const returnFocus = getCommandPaletteReturnFocus();
         if (returnFocus === false) return false;
         const composer = composerHandleRef?.current;
-        // Behind the Settings modal the composer is inert and cannot take focus.
-        if (!composer || document.querySelector("[data-app-modal]")) return returnFocus;
+        // Behind the Settings modal the composer is inert and cannot take focus, and this is
+        // the main pane's composer, so the split's focused second pane keeps its own focus.
+        if (
+          !composer ||
+          document.querySelector("[data-app-modal]") ||
+          readFocusedPane() === "secondary"
+        )
+          return returnFocus;
         composer.focusAtEnd();
         return false;
       }}
@@ -492,9 +502,21 @@ function OpenCommandPaletteDialog(props: {
   const desktopLocalBootstraps = useDesktopLocalBootstraps();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const availableSettingsSearchItems = useAvailableSettingsSearchItems();
-  const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread } =
-    useHandleNewThread();
-  const paletteRouteTarget = useThreadRouteTarget();
+  const routeThreadContext = useHandleNewThread();
+  const { defaultProjectRef, handleNewThread } = routeThreadContext;
+  // With the split's second pane focused, its thread is the palette's current thread.
+  const focusedSplitThreadRef = useFocusedSplitThreadRef();
+  const focusedSplitThread = useQuietThreadShell(focusedSplitThreadRef);
+  const activeThread =
+    focusedSplitThreadRef === null ? routeThreadContext.activeThread : focusedSplitThread;
+  const activeDraftThread =
+    focusedSplitThreadRef === null ? routeThreadContext.activeDraftThread : null;
+  const routeTarget = useThreadRouteTarget();
+  const paletteRouteTarget =
+    focusedSplitThreadRef === null
+      ? routeTarget
+      : ({ kind: "server", threadRef: focusedSplitThreadRef } as const);
+  const splitShown = useThreadTabsStore((state) => state.shownSplit !== null);
   const projects = useProjects();
   const referenceThreadRef =
     pathname === "/pull-requests"
@@ -1600,6 +1622,44 @@ function OpenCommandPaletteDialog(props: {
       ),
       tabAction("threadTab.close", "Close tab", <XIcon className={ITEM_ICON_CLASS} />),
     );
+    const splitAction = (
+      command: "splitView.toggle" | "splitView.moveTab" | "splitView.focusOther",
+      title: string,
+      searchTerms: readonly string[],
+      icon: ReactNode,
+    ): CommandPaletteActionItem => ({
+      kind: "action",
+      value: `action:${command}`,
+      searchTerms: [title, "split view", "side by side", "pane", ...searchTerms],
+      title,
+      icon,
+      shortcutCommand: command,
+      run: async () => dispatchMenuAction(command),
+    });
+    actionItems.push(
+      splitAction(
+        "splitView.toggle",
+        "Toggle split view",
+        ["two threads", "close split"],
+        <Columns2Icon className={ITEM_ICON_CLASS} />,
+      ),
+      splitAction(
+        "splitView.moveTab",
+        "Move tab to other pane",
+        ["swap panes"],
+        <ArrowLeftRightIcon className={ITEM_ICON_CLASS} />,
+      ),
+    );
+    if (splitShown) {
+      actionItems.push(
+        splitAction(
+          "splitView.focusOther",
+          "Focus other pane",
+          [],
+          <Columns2Icon className={ITEM_ICON_CLASS} />,
+        ),
+      );
+    }
   }
   if (hasClosedThreadTabs) {
     actionItems.push({

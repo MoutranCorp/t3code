@@ -388,6 +388,9 @@ export function commandLabel(command: KeybindingCommand): string {
   if (command === "threadTab.previous") return "Thread Tabs: Previous Tab";
   if (command === "threadTab.close") return "Thread Tabs: Close Tab";
   if (command === "threadTab.reopenClosed") return "Thread Tabs: Reopen Closed Thread Tab";
+  if (command === "splitView.toggle") return "Split View: Toggle Split View";
+  if (command === "splitView.moveTab") return "Split View: Move Tab to Other Pane";
+  if (command === "splitView.focusOther") return "Split View: Focus Other Pane";
   const railJump = PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS.indexOf(
     command as (typeof PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS)[number],
   );

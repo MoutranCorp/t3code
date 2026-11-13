@@ -197,6 +197,11 @@ current tab and `threadTab.reopenClosed` (`mod+alt+t`) reopens the last one you 
 `projectRail.jump.1` to `projectRail.jump.9` (`mod+alt+1` to `mod+alt+9`) open the
 projects in the project bar from the top, returning to the thread you last had open there.
 
+In a [split view](./thread-sidebar.md#show-two-threads-side-by-side), tab commands act on the
+pane you last clicked or typed in. `splitView.toggle` (`mod+\`) opens or closes the split,
+`splitView.moveTab` (`mod+shift+\`) moves the focused pane's thread to the other pane, and
+`splitView.focusOther` (`mod+alt+\`) moves focus to the other pane.
+
 ## Reserved shortcuts
 
 In the desktop app, `mod+w` closes the focused terminal or the active right-panel

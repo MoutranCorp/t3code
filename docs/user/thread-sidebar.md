@@ -72,6 +72,20 @@ to pin it or close all its tabs. The bell at the bottom lists every thread, in a
 project, that is waiting for you or finished since you last looked. See
 [keybindings](./keybindings.md#commands-with-special-behavior) for tab shortcuts.
 
+### Show two threads side by side
+
+On web and desktop, right-click a tab and choose **Open in split view** to show that thread
+beside the current one, or press `mod+\` to open the split with your most recent other thread.
+Both panes are full chats with their own tabs; the pane you last clicked takes keyboard
+shortcuts. Drag the divider to resize, or double-click it to even the panes. Close the split
+with **×** on the right pane's tab bar or `mod+\` again; closing the right pane's last tab
+closes it too.
+
+The right panel, terminal, and preview open only in the left pane. Opening a diff, file, or
+terminal from the right pane moves that thread to the left pane, and the left thread takes its
+place. Unsent drafts always open in the left pane. Windows narrower than a small laptop show
+only the left pane until you widen them.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.

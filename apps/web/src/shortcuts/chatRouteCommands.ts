@@ -7,6 +7,7 @@ import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { dispatchPreviewAction, type PreviewAction } from "../components/preview/previewActionBus";
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
+import { readFocusedThreadRouteTarget } from "../components/tabs/threadTabNavigation";
 import { shouldCreateNewThreadInCurrentProject } from "../components/Sidebar.logic";
 import {
   createNewThreadHandler,
@@ -63,9 +64,10 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) === "preview"
       : false;
   };
+  // New threads start in the focused split pane's project.
   const readThreadContext = () => {
     const lastUsedProjectKey = readLastUsedProjectKey();
-    const target = readRouteTarget();
+    const target = readFocusedThreadRouteTarget(router);
     const drafts = useComposerDraftStore.getState();
     const activeThread = target?.kind === "server" ? readThreadShell(target.threadRef) : null;
     const activeDraftThread = target

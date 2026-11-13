@@ -31,8 +31,12 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { openProjectFromTabs } from "./openProjectFromTabs";
 import {
   closeThreadTabsAndNavigate,
+  focusOtherThreadPane,
+  moveThreadTabToOtherPane,
   navigateToThreadTab,
   readActiveThreadTabKey,
+  readFocusedPane,
+  toggleSplitView,
   useActiveThreadTabKey,
 } from "./threadTabNavigation";
 import { ThreadMarkDot } from "./ThreadMarkDot";
@@ -56,6 +60,9 @@ const THREAD_TAB_COMMANDS = [
   "threadTab.previous",
   "threadTab.close",
   "threadTab.reopenClosed",
+  "splitView.toggle",
+  "splitView.moveTab",
+  "splitView.focusOther",
 ] as const satisfies readonly KeybindingCommand[];
 
 const NO_COUNTS: ThreadMarkCounts = { "needs-you": 0, error: 0, working: 0, done: 0 };
@@ -351,21 +358,42 @@ export function ProjectRail(props: { readonly reserveWindowControls: boolean }) 
   );
 
   // Event-time handlers: they read the last committed render, so registering once is enough.
+  // Tab commands act on the focused split pane, which cycles past the other pane's tab.
   const runTabCommand = useStableCallback(
     (command: (typeof THREAD_TAB_COMMANDS)[number]): boolean => {
-      const activeKey = readActiveThreadTabKey(router);
+      const routeKey = readActiveThreadTabKey(router);
+      const { shownSplit } = useThreadTabsStore.getState();
+      const pane = readFocusedPane();
+      const activeKey = pane === "secondary" ? shownSplit : routeKey;
       const shownKeys = shown.map((tab) => tab.key);
       switch (command) {
         case "threadTab.next":
         case "threadTab.previous": {
-          const next = adjacentThreadTab(shown, activeKey, command === "threadTab.next" ? 1 : -1);
-          if (next && next.key !== activeKey) void navigateToThreadTab(router, next.tab);
+          const paneTabs =
+            pane === "secondary"
+              ? shown.filter((tab) => tab.key !== routeKey && tab.tab.target.kind === "thread")
+              : shown.filter((tab) => tab.key !== shownSplit);
+          const next = adjacentThreadTab(
+            paneTabs,
+            activeKey,
+            command === "threadTab.next" ? 1 : -1,
+          );
+          if (next && next.key !== activeKey) {
+            if (pane === "secondary") useThreadTabsStore.getState().showInSplit(next.key);
+            else void navigateToThreadTab(router, next.tab);
+          }
           return next !== null;
         }
         case "threadTab.close":
           if (activeKey === null || !shownKeys.includes(activeKey)) return false;
           closeThreadTabsAndNavigate(router, [activeKey], shownKeys);
           return true;
+        case "splitView.toggle":
+          return toggleSplitView(router, shown);
+        case "splitView.moveTab":
+          return moveThreadTabToOtherPane(router, shown);
+        case "splitView.focusOther":
+          return focusOtherThreadPane();
         case "threadTab.reopenClosed": {
           const threadByKey = new Map(
             threads.map((thread) => [`${thread.environmentId}:${thread.id}`, thread] as const),

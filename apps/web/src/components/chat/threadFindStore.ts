@@ -10,6 +10,7 @@ import {
   messageSearchTokens,
 } from "@t3tools/shared/paletteSearch";
 import { create } from "zustand";
+import { useThreadTabsStore } from "../../threadTabsStore";
 import type { ThreadFindPositionReader, ThreadFindStart } from "./threadFind";
 
 export interface ThreadFindLocalSelection {
@@ -20,7 +21,7 @@ export interface ThreadFindLocalSelection {
   readonly navigationId: number;
 }
 
-/** Find is open in at most one thread: the one the chat view shows. */
+/** Find is open in at most one thread: one a chat view shows. */
 export interface ThreadFindState {
   readonly threadKey: string | null;
   readonly query: string;
@@ -53,17 +54,20 @@ interface ThreadFindTimeline {
   readonly navigate: () => void;
 }
 
-let attachedTimeline: ThreadFindTimeline | null = null;
+// Keyed by thread: the split view shows two timelines at once.
+const attachedTimelines = new Map<string, ThreadFindTimeline>();
 
 function timelineFor(threadKey: string): ThreadFindTimeline | null {
-  return attachedTimeline?.threadKey === threadKey ? attachedTimeline : null;
+  return attachedTimelines.get(threadKey) ?? null;
 }
 
 /** Attaches the timeline showing a thread; returns the detach. */
 export function attachThreadFindTimeline(timeline: ThreadFindTimeline): () => void {
-  attachedTimeline = timeline;
+  attachedTimelines.set(timeline.threadKey, timeline);
   return () => {
-    if (attachedTimeline === timeline) attachedTimeline = null;
+    if (attachedTimelines.get(timeline.threadKey) === timeline) {
+      attachedTimelines.delete(timeline.threadKey);
+    }
   };
 }
 
@@ -148,7 +152,8 @@ export function closeThreadFind(): void {
 
 /**
  * Find belongs to the thread it was opened in: a route showing anything else
- * closes it. Settings and Usage draw over the thread, so they keep it.
+ * closes it, unless the split view's second pane shows it. Settings and Usage
+ * draw over the thread, so they keep it.
  */
 export function retainThreadFindForRoute(route: {
   readonly modalPage: boolean;
@@ -157,7 +162,13 @@ export function retainThreadFindForRoute(route: {
   if (route.modalPage) return;
   const { threadKey } = useThreadFindStore.getState();
   const shownKey = route.threadRef ? scopedThreadKey(route.threadRef) : null;
-  if (threadKey !== null && threadKey !== shownKey) closeThreadFind();
+  if (
+    threadKey !== null &&
+    threadKey !== shownKey &&
+    threadKey !== useThreadTabsStore.getState().shownSplit
+  ) {
+    closeThreadFind();
+  }
 }
 
 /** Whether find is open in `thread`, as long as find is available there. */

@@ -1,6 +1,6 @@
 /**
- * Browser-style thread tabs. The open list and its order persist; which tab is active is not
- * stored, it is whatever thread the route shows, so a second pane can later hold its own.
+ * Browser-style thread tabs. The open list and its order persist. The main pane's active tab is
+ * not stored, it is whatever thread the route shows; the split view's second pane keeps its own.
  */
 export type ThreadTabTarget =
   | { readonly kind: "thread"; readonly environmentId: string; readonly threadId: string }
@@ -18,9 +18,13 @@ export interface ThreadTabsState {
   readonly recent: readonly string[];
   /** Closed tabs, most recently closed first. */
   readonly closed: readonly ThreadTab[];
+  /** The tab the split view's second pane shows; null while the split is closed. */
+  readonly split: string | null;
 }
 
-export const EMPTY_THREAD_TABS: ThreadTabsState = { tabs: [], recent: [], closed: [] };
+export const EMPTY_THREAD_TABS: ThreadTabsState = { tabs: [], recent: [], closed: [], split: null };
+
+export const DEFAULT_SPLIT_RATIO = 0.5;
 
 const MAX_OPEN_TABS = 40;
 const MAX_CLOSED_TABS = 20;
@@ -35,8 +39,49 @@ function makeTab(target: ThreadTabTarget): ThreadTab {
   return { key: threadTabKey(target), target };
 }
 
-/** Opens the route's tab, or brings it forward. A sent draft's tab becomes its thread in place. */
-export function visitThreadTab(state: ThreadTabsState, target: ThreadTabTarget): ThreadTabsState {
+/** Only a server thread opens in the second pane: a draft promotes through the route. */
+function isSplitKey(key: string): boolean {
+  return !key.startsWith("draft:");
+}
+
+function canSplit(state: ThreadTabsState, key: string): boolean {
+  return state.tabs.some((tab) => tab.key === key && tab.target.kind === "thread");
+}
+
+/**
+ * The tab the second pane shows. When the main pane moves onto the split's tab, the panes swap:
+ * the second pane takes the tab the main pane left, or closes if that tab cannot go there.
+ */
+export function resolveSplitTabKey(
+  split: string | null,
+  primaryKey: string | null,
+  previousPrimaryKey: string | null,
+): string | null {
+  if (split === null || split !== primaryKey) return split;
+  return previousPrimaryKey !== null &&
+    previousPrimaryKey !== primaryKey &&
+    isSplitKey(previousPrimaryKey)
+    ? previousPrimaryKey
+    : null;
+}
+
+/**
+ * Opens the route's tab, or brings it forward. A sent draft's tab becomes its thread in place.
+ * `previousKey` is the tab the route showed before; it swaps into the second pane when the
+ * route moves onto the second pane's tab, so a thread is never in both panes.
+ */
+export function visitThreadTab(
+  state: ThreadTabsState,
+  target: ThreadTabTarget,
+  previousKey: string | null = null,
+): ThreadTabsState {
+  const next = openThreadTab(state, target);
+  const resolved = resolveSplitTabKey(next.split, threadTabKey(target), previousKey);
+  const split = resolved !== null && canSplit(next, resolved) ? resolved : null;
+  return split === next.split ? next : { ...next, split };
+}
+
+function openThreadTab(state: ThreadTabsState, target: ThreadTabTarget): ThreadTabsState {
   const key = threadTabKey(target);
   const recent = [key, ...state.recent.filter((entry) => entry !== key)];
   const closed = state.closed.some((tab) => tab.key === key)
@@ -56,6 +101,7 @@ export function visitThreadTab(state: ThreadTabsState, target: ThreadTabTarget):
   if (promotedIndex >= 0) {
     const draftKey = state.tabs[promotedIndex]!.key;
     return {
+      ...state,
       tabs: state.tabs.map((entry, index) => (index === promotedIndex ? tab : entry)),
       recent: recent.filter((entry) => entry !== draftKey),
       closed,
@@ -79,13 +125,27 @@ export function visitThreadTab(state: ThreadTabsState, target: ThreadTabTarget):
     tabs = tabs.filter((entry) => !dropped.has(entry.key));
     trimmedRecent = recent.filter((entry) => !dropped.has(entry));
   }
-  return { tabs, recent: trimmedRecent, closed };
+  return { ...state, tabs, recent: trimmedRecent, closed };
+}
+
+/** The nearest accepted key right of `fromKey` among `shownKeys`, else left of it. */
+function neighbourKey(
+  shownKeys: readonly string[],
+  fromKey: string,
+  accept: (key: string) => boolean,
+): string | null {
+  const index = shownKeys.indexOf(fromKey);
+  const first = (entries: readonly string[]) => entries.find(accept) ?? null;
+  return index < 0
+    ? first(shownKeys)
+    : (first(shownKeys.slice(index + 1)) ?? first(shownKeys.slice(0, index).toReversed()));
 }
 
 /**
- * Closes tabs. When the shown tab closes, `next` is the tab to show instead: its right
- * neighbour among `shownKeys`, else its left one, else null for none. `next` is undefined
- * when the shown tab stays open.
+ * Closes tabs. When the main pane's tab closes, `next` is the tab to show instead: its right
+ * neighbour among `shownKeys`, else its left one, else the second pane's tab (closing the
+ * split), else null for none. `next` is undefined when the main pane's tab stays open. A
+ * closing second pane moves to its own neighbour, or closes.
  */
 export function closeThreadTabs(
   state: ThreadTabsState,
@@ -96,29 +156,63 @@ export function closeThreadTabs(
   const closing = new Set(keys);
   const closedTabs = state.tabs.filter((tab) => closing.has(tab.key));
   if (closedTabs.length === 0) return { state, next: undefined };
-  let next: ThreadTab | null | undefined;
+  const stays = (key: string) => !closing.has(key);
+  let split = state.split;
+  let nextKey: string | null | undefined;
   if (activeKey !== null && closing.has(activeKey)) {
-    const index = shownKeys.indexOf(activeKey);
-    const remaining = (entries: readonly string[]) =>
-      entries.find((entry) => !closing.has(entry)) ?? null;
-    const nextKey =
-      index < 0
-        ? remaining(shownKeys)
-        : (remaining(shownKeys.slice(index + 1)) ??
-          remaining(shownKeys.slice(0, index).toReversed()));
-    next = nextKey === null ? null : (state.tabs.find((tab) => tab.key === nextKey) ?? null);
+    nextKey = neighbourKey(shownKeys, activeKey, (key) => stays(key) && key !== split);
+    if (nextKey === null && split !== null && stays(split)) {
+      nextKey = split;
+      split = null;
+    }
+  }
+  if (split !== null && closing.has(split)) {
+    const primaryKey = nextKey === undefined ? activeKey : nextKey;
+    split = neighbourKey(
+      shownKeys,
+      split,
+      (key) => stays(key) && key !== primaryKey && canSplit(state, key),
+    );
   }
   return {
     state: {
-      tabs: state.tabs.filter((tab) => !closing.has(tab.key)),
-      recent: state.recent.filter((entry) => !closing.has(entry)),
-      closed: [
-        ...closedTabs.toReversed(),
-        ...state.closed.filter((tab) => !closing.has(tab.key)),
-      ].slice(0, MAX_CLOSED_TABS),
+      tabs: state.tabs.filter((tab) => stays(tab.key)),
+      recent: state.recent.filter(stays),
+      closed: [...closedTabs.toReversed(), ...state.closed.filter((tab) => stays(tab.key))].slice(
+        0,
+        MAX_CLOSED_TABS,
+      ),
+      split,
     },
-    next,
+    next:
+      nextKey === undefined || nextKey === null
+        ? nextKey
+        : (state.tabs.find((tab) => tab.key === nextKey) ?? null),
   };
+}
+
+/** Shows a thread tab in the second pane, opening the split. The caller keeps it off the route. */
+export function showThreadTabInSplit(state: ThreadTabsState, key: string): ThreadTabsState {
+  if (!canSplit(state, key) || (state.split === key && state.recent[0] === key)) return state;
+  return { ...state, split: key, recent: [key, ...state.recent.filter((entry) => entry !== key)] };
+}
+
+const MIN_SPLIT_RATIO = 0.2;
+
+/** Keeps each pane at least `minPaneWidth` wide inside `width`, or even when both cannot fit. */
+export function clampSplitRatio(ratio: number, width: number, minPaneWidth: number): number {
+  if (!Number.isFinite(ratio)) return DEFAULT_SPLIT_RATIO;
+  const edge =
+    width > 2 * minPaneWidth
+      ? Math.max(MIN_SPLIT_RATIO, minPaneWidth / width)
+      : DEFAULT_SPLIT_RATIO;
+  return Math.min(1 - edge, Math.max(edge, ratio));
+}
+
+export function sanitizeSplitRatio(value: unknown): number {
+  return typeof value === "number" && value >= MIN_SPLIT_RATIO && value <= 1 - MIN_SPLIT_RATIO
+    ? value
+    : DEFAULT_SPLIT_RATIO;
 }
 
 /** Takes the most recently closed tab that can still open; the caller navigates to it. */
@@ -216,9 +310,15 @@ export function sanitizeThreadTabsState(value: unknown): ThreadTabsState {
         ),
       ]
     : [];
+  const split =
+    typeof raw.split === "string" &&
+    tabs.some((tab) => tab.key === raw.split && tab.target.kind === "thread")
+      ? raw.split
+      : null;
   return {
     tabs,
     recent,
     closed: sanitizeTabs(raw.closed, MAX_CLOSED_TABS).filter((tab) => !open.has(tab.key)),
+    split,
   };
 }

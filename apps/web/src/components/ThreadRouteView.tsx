@@ -8,7 +8,7 @@ import { Navigate, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import ChatView from "./ChatView";
-import { BackgroundThreadContext } from "./chat/backgroundThread";
+import { ThreadSplitLayout } from "./tabs/ThreadSplitLayout";
 import { SidebarInset } from "./ui/sidebar";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
@@ -229,7 +229,14 @@ export function ThreadRouteView({
       className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh"
       inert={background}
     >
-      <BackgroundThreadContext value={background}>{view}</BackgroundThreadContext>
+      <ThreadSplitLayout
+        primaryKey={
+          target.kind === "server" ? scopedThreadKey(target.threadRef) : `draft:${target.draftId}`
+        }
+        background={background}
+      >
+        {view}
+      </ThreadSplitLayout>
       {background ? null : redirect}
     </SidebarInset>
   );

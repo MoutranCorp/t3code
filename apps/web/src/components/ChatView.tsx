@@ -121,7 +121,7 @@ import { resolveThreadReferenceCopyTarget } from "@t3tools/client-runtime/thread
 import { resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
 import { type SetStateAction, use, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BackgroundThreadContext } from "./chat/backgroundThread";
+import { BackgroundThreadContext, InactiveThreadPaneContext } from "./chat/backgroundThread";
 import { WorkspaceMutationIdContext } from "./chat/ChatMarkdownMedia";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
@@ -200,6 +200,11 @@ import { toastManager } from "./ui/toast";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId } from "~/lib/utils";
 import { isInSideChatPane, type SideChatParentPanel } from "~/lib/sideChatPane";
+import {
+  SPLIT_COMPOSER_AREA,
+  SPLIT_CONVERSATION_AREA,
+  type SecondaryPaneHost,
+} from "./tabs/threadTabNavigation";
 import {
   NO_PROVIDER_MODEL_SELECTION,
   providerInstanceEntriesFor,
@@ -406,6 +411,8 @@ type ChatViewProps =
       forceExpandedMobileComposer?: boolean;
       /** A side chat in its parent's right panel; the parent keeps the keyboard and workspace UI. */
       embedded?: SideChatParentPanel;
+      /** The split view's second pane, whose right panel and terminal live in the main pane. */
+      secondaryPane?: SecondaryPaneHost;
       routeKind: "server";
       draftId?: never;
     }
@@ -416,6 +423,7 @@ type ChatViewProps =
       reserveTitleBarControlInset?: boolean;
       forceExpandedMobileComposer?: boolean;
       embedded?: never;
+      secondaryPane?: never;
       routeKind: "draft";
       draftId: DraftId;
     };
@@ -431,8 +439,12 @@ export default function ChatView(props: ChatViewProps) {
     reserveTitleBarControlInset = true,
     forceExpandedMobileComposer = false,
     embedded: parentPanel,
+    secondaryPane,
   } = props;
   const embedded = parentPanel !== undefined;
+  const isSecondaryPane = secondaryPane !== undefined;
+  // The focused split pane claims focus on its own; this one leaves it alone.
+  const inactivePane = use(InactiveThreadPaneContext);
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
   const draftId = routeKind === "draft" ? props.draftId : null;
@@ -588,7 +600,11 @@ export default function ChatView(props: ChatViewProps) {
       ? { citation: locationCitation, key: citationActivation }
       : null
   ) as AssistantCitationRequest | null;
-  useSideChatCitationReveal(embedded ? null : routeThreadRef, locationCitation, citationActivation);
+  useSideChatCitationReveal(
+    embedded || isSecondaryPane ? null : routeThreadRef,
+    locationCitation,
+    citationActivation,
+  );
   const citationHistory = useCitedHistory(citationRequest);
   const { resolvedTheme } = useTheme();
   const composerRuntimeMode = useComposerDraftStore(
@@ -719,8 +735,12 @@ export default function ChatView(props: ChatViewProps) {
     setPendingServerThreadStartFromOriginByThreadId,
   ] = useState<Record<string, boolean>>({});
   const legendListRef = useRef<LegendListRef | null>(null);
-  const conversationArea = workspaceAreaProps("conversation", 1, "Conversation");
-  const composerArea = workspaceAreaProps("composer", 2, "Message input");
+  const conversationArea = isSecondaryPane
+    ? workspaceAreaProps(SPLIT_CONVERSATION_AREA, 6, "Split view conversation")
+    : workspaceAreaProps("conversation", 1, "Conversation");
+  const composerArea = isSecondaryPane
+    ? workspaceAreaProps(SPLIT_COMPOSER_AREA, 7, "Split view message input")
+    : workspaceAreaProps("composer", 2, "Message input");
   const [composerOverlayElement, setComposerOverlayElement] = useState<HTMLDivElement | null>(null);
   const [composerTimelineInset, setComposerTimelineInset] = useState(0);
   const composerTimelineInsetRef = useRef(0);
@@ -1035,16 +1055,18 @@ export default function ChatView(props: ChatViewProps) {
   if (anchorRunSettled) {
     setTimelineAnchor({ threadKey: activeThreadKey, messageId: null });
   }
+  // The split's second pane has no right panel; it reads as closed there.
+  const panelThreadRef = isSecondaryPane ? null : activeThreadRef;
   const activeRightPanelKind = useRightPanelStore((state) =>
-    selectActiveRightPanel(state.byThreadKey, activeThreadRef),
+    selectActiveRightPanel(state.byThreadKey, panelThreadRef),
   );
   const diffOpen = activeRightPanelKind === "diff";
   const rightPanelState = useRightPanelStore((state) =>
-    selectThreadRightPanelState(state.byThreadKey, activeThreadRef),
+    selectThreadRightPanelState(state.byThreadKey, panelThreadRef),
   );
   const shouldUsePlanSidebarSheet = prefersPlanSidebarSheet && rightPanelState.maximized !== true;
   const activeRightPanelSurface = useRightPanelStore((state) =>
-    selectActiveRightPanelSurface(state.byThreadKey, activeThreadRef),
+    selectActiveRightPanelSurface(state.byThreadKey, panelThreadRef),
   );
   const activePreviewState = useThreadPreviewState(activeThreadRef);
   const activePreviewServerEpoch = activePreviewState.serverEpoch;
@@ -1162,9 +1184,9 @@ export default function ChatView(props: ChatViewProps) {
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops file surfaces from the right panel store once bootstrap shows the thread has no workspace
   useEffect(() => {
-    if (!activeThreadRef || !activeEnvironmentBootstrapComplete) return;
-    useRightPanelStore.getState().reconcileFileSurfaces(activeThreadRef, activeProject !== null);
-  }, [activeEnvironmentBootstrapComplete, activeProject, activeThreadRef]);
+    if (!panelThreadRef || !activeEnvironmentBootstrapComplete) return;
+    useRightPanelStore.getState().reconcileFileSurfaces(panelThreadRef, activeProject !== null);
+  }, [activeEnvironmentBootstrapComplete, activeProject, panelThreadRef]);
 
   const activeEnvironment =
     activeThread == null ? null : (environmentById.get(activeThread.environmentId) ?? null);
@@ -1836,8 +1858,9 @@ export default function ChatView(props: ChatViewProps) {
   const onInterruptStable = useStableCallback(onInterrupt);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window listener for the desktop snapshot event that focuses the composer
   useEffect(
-    () => (embedded ? undefined : subscribeSnapShotComposerFocus(focusComposerStable)),
-    [embedded, focusComposerStable],
+    () =>
+      embedded || inactivePane ? undefined : subscribeSnapShotComposerFocus(focusComposerStable),
+    [embedded, inactivePane, focusComposerStable],
   );
   const scheduleComposerFocus = () => {
     window.requestAnimationFrame(() => {
@@ -1891,8 +1914,8 @@ export default function ChatView(props: ChatViewProps) {
     addTerminalSurfaceStable,
     closePanelTerminalStable,
     lastInvokedScriptByProjectId,
-    runProjectScriptStable,
-    runShellCommandStable,
+    runProjectScriptStable: runProjectScriptHere,
+    runShellCommandStable: runShellCommandHere,
     splitPanelTerminalStable,
     splitPanelTerminalVerticalStable,
     toggleTerminalVisibilityStable,
@@ -1998,8 +2021,12 @@ export default function ChatView(props: ChatViewProps) {
     : linkedThreadPullRequestKey;
   const activeRunningTurnId = activeRuntime?.activeRunId ?? null;
   useProactivePanels({
-    threadRef: isServerThread && !embedded ? activeThreadRef : null,
-    enabled: settings.proactivePanelsEnabled && !shouldUsePlanSidebarSheet && !embedded,
+    threadRef: isServerThread && !embedded ? panelThreadRef : null,
+    enabled:
+      settings.proactivePanelsEnabled &&
+      !shouldUsePlanSidebarSheet &&
+      !embedded &&
+      !isSecondaryPane,
     settingsHydrated: clientSettingsHydrated,
     threadDetailLoading,
     runningTurnId: activeRunningTurnId,
@@ -2128,15 +2155,25 @@ export default function ChatView(props: ChatViewProps) {
     setTimelineAnchor,
   });
 
+  const focusComposerOnThreadOpenStable = useStableCallback(() => {
+    if (!inactivePane) focusComposer();
+  });
   useFocusComposerOnThreadOpen(
     activeThread?.id,
     !embedded && !terminalUiState.terminalOpen,
-    focusComposerStable,
+    focusComposerOnThreadOpenStable,
   );
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window focus listener that refocuses the composer after the window regains focus
   useEffect(() => {
-    if (embedded || !activeThread?.id || terminalUiState.terminalOpen || isMobileViewport) return;
+    if (
+      embedded ||
+      inactivePane ||
+      !activeThread?.id ||
+      terminalUiState.terminalOpen ||
+      isMobileViewport
+    )
+      return;
     let frame: number | null = null;
     const onWindowFocus = () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
@@ -2162,6 +2199,7 @@ export default function ChatView(props: ChatViewProps) {
   }, [
     activeThread?.id,
     embedded,
+    inactivePane,
     focusComposerStable,
     isMobileViewport,
     terminalUiState.terminalOpen,
@@ -2353,9 +2391,9 @@ export default function ChatView(props: ChatViewProps) {
     createBrowserSurface,
     createBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
-    onOpenToolDiffStable,
-    onOpenTurnDiffStable,
-    openChangesFromThreadPanelStable,
+    onOpenToolDiffStable: openToolDiffHere,
+    onOpenTurnDiffStable: openTurnDiffHere,
+    openChangesFromThreadPanelStable: openChangesHere,
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,
     toggleRightPanelStable,
@@ -2371,7 +2409,7 @@ export default function ChatView(props: ChatViewProps) {
     pullRequestPanelTarget,
     threadPanelPresentation,
     isServerThread,
-    embedded,
+    embedded: embedded || isSecondaryPane,
     isGitRepo,
     browserAvailable,
     canOperatePreview,
@@ -2387,6 +2425,21 @@ export default function ChatView(props: ChatViewProps) {
     onDiffPanelOpen,
     closeRightPanelSurface,
   });
+  // The second pane shows its thread's diffs and terminal runs in the main pane, so they move
+  // the thread there, even when the panel or drawer they write to was already open.
+  const inMainPane = <Args extends unknown[], Result>(action: (...args: Args) => Result) =>
+    secondaryPane === undefined
+      ? action
+      : (...args: Args): Result => {
+          const result = action(...args);
+          secondaryPane.promote();
+          return result;
+        };
+  const onOpenToolDiffStable = inMainPane(openToolDiffHere);
+  const onOpenTurnDiffStable = inMainPane(openTurnDiffHere);
+  const openChangesFromThreadPanelStable = inMainPane(openChangesHere);
+  const runProjectScriptStable = inMainPane(runProjectScriptHere);
+  const runShellCommandStable = inMainPane(runShellCommandHere);
   const pullRequestSurfaceAvailable = supportsPullRequests && pullRequestPanelTarget !== null;
   const {
     acknowledgeActiveThreadWoke,
@@ -2672,8 +2725,10 @@ export default function ChatView(props: ChatViewProps) {
   // composer effect above.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focuses the open drawer terminal when entering a thread
   useEffect(() => {
-    if (activeThreadRef && !embedded) return focusTerminalOnThreadEnter(activeThreadRef);
-  }, [activeThreadRef, embedded]);
+    if (activeThreadRef && !embedded && !isSecondaryPane) {
+      return focusTerminalOnThreadEnter(activeThreadRef);
+    }
+  }, [activeThreadRef, embedded, isSecondaryPane]);
 
   const getShortcutContext = (eventTarget: EventTarget | null = document.activeElement) => ({
     terminalFocus: getTerminalFocusOwner() !== null,
@@ -2718,8 +2773,9 @@ export default function ChatView(props: ChatViewProps) {
       focusComposerStable();
     },
     commands: {
-      ...terminalShortcuts,
-      ...rightPanelShortcuts,
+      // The second pane's Mod+W falls through to closing its tab.
+      ...(isSecondaryPane ? {} : terminalShortcuts),
+      ...(isSecondaryPane ? {} : rightPanelShortcuts),
       ...threadLifecycleShortcuts,
       "thread.copyReference": ({ event }) => {
         if (!event.repeat) copyActiveThreadReference();
@@ -2761,20 +2817,21 @@ export default function ChatView(props: ChatViewProps) {
   // A focused desktop browser page forwards these chords as menu actions.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to desktop bridge menu actions that toggle the right panel
   useEffect(() => {
-    if (embedded) return;
+    if (embedded || isSecondaryPane) return;
     return window.desktopBridge?.onMenuAction((action) => {
       if (action === "rightPanel.toggle") toggleRightPanelStable();
       else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximizedStable();
     });
-  }, [embedded, toggleRightPanelStable, toggleRightPanelMaximizedStable]);
+  }, [embedded, isSecondaryPane, toggleRightPanelStable, toggleRightPanelMaximizedStable]);
 
-  usePasteToFocusComposer(embedded ? null : activeThreadId, composerRef);
+  usePasteToFocusComposer(embedded || inactivePane ? null : activeThreadId, composerRef);
   // A delegated task is a remote thread's subagent.
   const isSubagentThread =
     activeThread?.lineage.relationshipToParent === "subagent" || delegatedFrom !== null;
   // Side chats do not nest or start from subagents, and older servers would fork a listed thread.
   const sideChatsOffered =
     !embedded &&
+    !isSecondaryPane &&
     canOperateThread &&
     activeThread?.lineage.sideChat !== true &&
     !isSubagentThread &&
@@ -3184,7 +3241,7 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   if (!activeThread) {
-    return embedded ? null : <NoActiveThreadState />;
+    return embedded || isSecondaryPane ? null : <NoActiveThreadState />;
   }
 
   const rightPanelContent = activeThreadRef ? (
@@ -3258,6 +3315,8 @@ export default function ChatView(props: ChatViewProps) {
     <PanelLayoutControls
       {...panelToggleControlProps}
       showThreadPanelControl={!inlineRightPanelOwnsTitleBar}
+      showTerminalControl={!isSecondaryPane}
+      showRightPanelControl={!isSecondaryPane}
     />
   );
   const threadPanelHeaderControl = <ThreadPanelHeaderControl {...panelToggleControlProps} />;
@@ -3283,7 +3342,7 @@ export default function ChatView(props: ChatViewProps) {
       ref={setWorkspaceLayoutElement}
       className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
     >
-      {embedded ? null : (
+      {embedded || isSecondaryPane ? null : (
         <DeviceSetupDialogHost
           threadKey={activeThreadKey}
           threadRef={activeThreadRef}
@@ -3314,7 +3373,7 @@ export default function ChatView(props: ChatViewProps) {
                       "wco:pr-(--workspace-native-controls-inset)",
                   )
                 : "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
-              COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+              !isSecondaryPane && COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
             )}
           >
             {isElectron && rightPanelControlsAtRoot ? (
@@ -3356,7 +3415,12 @@ export default function ChatView(props: ChatViewProps) {
             />
           </header>
         )}
-        {embedded ? null : <ThreadTabStrip />}
+        {embedded ? null : (
+          <ThreadTabStrip
+            pane={isSecondaryPane ? "secondary" : "primary"}
+            paneThreadKey={routeThreadKey}
+          />
+        )}
 
         <div className="relative flex min-h-0 min-w-0 flex-1">
           <ThreadFindCanvas
@@ -3834,10 +3898,14 @@ export default function ChatView(props: ChatViewProps) {
               </div>
             </div>
 
-            {canOperatePreview && activeThreadRef && activeEnvironmentServerBrowser && !embedded ? (
+            {canOperatePreview &&
+            activeThreadRef &&
+            activeEnvironmentServerBrowser &&
+            !embedded &&
+            !isSecondaryPane ? (
               <PreviewSessionSync threadRef={activeThreadRef} />
             ) : null}
-            {activeThreadRef && shownPreviewMiniPlayer && !embedded ? (
+            {activeThreadRef && shownPreviewMiniPlayer && !embedded && !isSecondaryPane ? (
               <ThreadPreviewMiniPlayer
                 key={`${activeThreadKey}:${previewMiniPlayerSourceKey(shownPreviewMiniPlayer.source)}`}
                 threadRef={activeThreadRef}
@@ -3937,7 +4005,7 @@ export default function ChatView(props: ChatViewProps) {
           </ThreadFindCanvas>
         </div>
 
-        {embedded ? null : (
+        {embedded || isSecondaryPane ? null : (
           <ChatTerminalDrawers
             activeThreadKey={activeThreadKey}
             activeTerminalOpen={Boolean(terminalUiState.terminalOpen)}
@@ -3953,7 +4021,7 @@ export default function ChatView(props: ChatViewProps) {
         )}
       </div>
 
-      {rightPanelPresent && activeThreadRef && !embedded ? (
+      {rightPanelPresent && activeThreadRef && !embedded && !isSecondaryPane ? (
         <ChatRightPanel
           sheet={shouldUsePlanSidebarSheet}
           workspaceLayoutElement={workspaceLayoutElement}
@@ -4022,7 +4090,8 @@ export default function ChatView(props: ChatViewProps) {
         checkpoints={serverProjection?.checkpoints}
         onConfirm={onConfirmRevertStable}
       />
-      {embedded ? null : <LinkPullRequestDialogHost />}
+      {/* One host serves both panes: its dialog is app-wide. */}
+      {embedded || isSecondaryPane ? null : <LinkPullRequestDialogHost />}
       <ThreadVisitWatermark threadRef={routeThreadRef} />
       <ExpandedImageDialogHost threadKey={routeThreadKey} />
     </div>
