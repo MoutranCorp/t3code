@@ -9,13 +9,13 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
 if ($Shortcut) {
-    $linkPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'T3 Fork.lnk'
+    $linkPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'Omnicode.lnk'
     $link = (New-Object -ComObject WScript.Shell).CreateShortcut($linkPath)
     $link.TargetPath = Join-Path $PSHOME 'powershell.exe'
     $link.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File `"$PSCommandPath`" -Desktop"
     $link.WorkingDirectory = $PSScriptRoot
     $link.IconLocation = Join-Path $PSScriptRoot 'assets\prod\t3-black-windows.ico'
-    $link.Description = 'T3 Code fork desktop app'
+    $link.Description = 'Omnicode desktop app'
     $link.Save()
     Write-Host "Created $linkPath"
     exit 0
@@ -32,6 +32,7 @@ $env:TMP = $env:TEMP
 $env:T3CODE_HOME = Join-Path $PSScriptRoot '.t3'
 $env:KIMI_CODE_HOME = Join-Path $env:T3CODE_HOME 'kimi'
 $env:T3CODE_DEV_SEED = '0'
+$env:T3CODE_TELEMETRY_ENABLED = '0'
 
 if ($Install) {
     & npm.cmd install --prefix $toolRoot pnpm@12.14.0 node@26.12.1 --no-audit --no-fund
