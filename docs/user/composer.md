@@ -63,7 +63,7 @@ See [images and videos](#images-and-videos-in-messages) for previewing and savin
 ### Mark up an image before sending
 
 To point the agent at part of an image, select its thumbnail in the composer and choose
-**Annotate** on web or desktop. Draw freehand, add arrows, rectangles, or text in a few colours and
+**Annotate** on web or desktop; on mobile, expand the composer and tap the pencil on the thumbnail. Draw freehand, add arrows, rectangles, or text in a few colours and
 sizes; drag a text label with the text tool to move it, or select it to edit. **Ctrl+Z** (**⌘Z**)
 undoes a mark. **Save** replaces the attachment with the marked-up image; **Cancel** leaves it
 unchanged. The original is not kept, so remove and attach the image again to start over. Images in

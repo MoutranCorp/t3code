@@ -39,6 +39,10 @@
       "types": "./src/modelSearch.ts",
       "default": "./src/modelSearch.ts"
     },
+    "./image-annotation": {
+      "types": "./src/imageAnnotation.ts",
+      "default": "./src/imageAnnotation.ts"
+    },
     "./image-attachment-size": {
       "types": "./src/imageAttachmentSize.ts",
       "default": "./src/imageAttachmentSize.ts"

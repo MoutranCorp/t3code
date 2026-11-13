@@ -39,6 +39,8 @@ export interface ComposerAttachmentStripProps {
     sourceIdentifier: string,
   ) => void;
   readonly onPressDocument?: (attachment: DraftComposerFileAttachment) => void;
+  /** Offers markup on unsent images; omit where an image cannot be replaced. */
+  readonly onAnnotate?: (attachment: DraftComposerImageAttachment) => void;
   readonly imageSize?: number;
   readonly imageBorderRadius?: number;
   readonly removeButtonPlacement?: "overlay" | "gutter";
@@ -326,6 +328,18 @@ export function ComposerAttachmentStrip(props: ComposerAttachmentStripProps) {
                   weight="bold"
                 />
               </Pressable>
+              {props.onAnnotate && attachment.type === "image" ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Annotate ${attachment.name}`}
+                  className="absolute h-[22px] w-[22px] items-center justify-center rounded-[11px] bg-black/55"
+                  style={{ bottom: 4, right: 4 + removeButtonGutter }}
+                  hitSlop={6}
+                  onPress={() => props.onAnnotate?.(attachment)}
+                >
+                  <SymbolView name="pencil" size={11} tintColor="#ffffff" type="monochrome" />
+                </Pressable>
+              ) : null}
             </View>
           ))}
         </View>

@@ -48,7 +48,7 @@ import {
   type TextAnnotation,
   toImagePoint,
   undoAnnotation,
-} from "./imageAnnotation.logic";
+} from "@t3tools/client-runtime/image-annotation";
 import {
   drawAnnotation,
   drawPenSegment,

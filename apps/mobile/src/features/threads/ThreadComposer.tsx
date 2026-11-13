@@ -61,6 +61,7 @@ import {
   setComposerDraftText,
   composerContextImportsAtom,
   countComposerDraftAttachmentsAfterSelection,
+  replaceComposerDraftAttachment,
   useComposerDraft,
 } from "../../state/use-composer-drafts";
 import { appAtomRegistry } from "../../state/atom-registry";
@@ -85,7 +86,9 @@ import { ComposerModelControl } from "../../components/ComposerModelControl";
 import {
   composerStripAttachments,
   type DraftComposerFileAttachment,
+  type DraftComposerImageAttachment,
 } from "../../lib/composerImages";
+import { ImageAnnotatorModal } from "../../components/ImageAnnotatorModal";
 import {
   buildModelOptions,
   isModelSelectionUnavailable,
@@ -452,6 +455,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
 
   const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
   const [previewVideo, setPreviewVideo] = useState<VideoPreviewSource | null>(null);
+  const [annotating, setAnnotating] = useState<DraftComposerImageAttachment | null>(null);
   const composerOwnerKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
   const composerDraftKey = props.draftKey ?? composerOwnerKey;
   const { text: draftMessage, attachments: draftAttachments } = useComposerDraft(composerDraftKey);
@@ -653,6 +657,17 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
   };
 
+  const onAnnotate = (attachment: DraftComposerImageAttachment) => {
+    wasExpandedBeforePreviewRef.current = isFocused;
+    inputRef.current?.blur();
+    setAnnotating(attachment);
+  };
+
+  const closeAnnotator = () => {
+    setAnnotating(null);
+    closePreview();
+  };
+
   const onPressVideo = (attachment: DraftComposerFileAttachment, sourceIdentifier: string) => {
     wasExpandedBeforePreviewRef.current = isFocused;
     setPreviewFile(null);
@@ -783,6 +798,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
             onRemove={isSubmissionLocked ? () => undefined : props.onRemoveDraftImage}
             onPressPreview={isSubmissionLocked ? undefined : onPressPreview}
             onPressVideo={isSubmissionLocked ? undefined : onPressVideo}
+            onAnnotate={isSubmissionLocked ? undefined : onAnnotate}
             onPressDocument={
               isSubmissionLocked
                 ? undefined
@@ -1214,6 +1230,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
 
       <VideoPreviewModal source={previewVideo} onRequestClose={closePreview} />
       <FilePreviewModal source={previewFile} onRequestClose={closePreview} />
+      {annotating ? (
+        <ImageAnnotatorModal
+          key={annotating.id}
+          attachment={annotating}
+          onSave={(replacement) =>
+            replaceComposerDraftAttachment(composerDraftKey, annotating.id, replacement)
+          }
+          onRequestClose={closeAnnotator}
+        />
+      ) : null}
     </Animated.View>
   );
 };

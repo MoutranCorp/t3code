@@ -200,6 +200,7 @@ import {
   modelOptionMemoryAtom,
   releaseUnusedComposerAttachmentFiles,
   removeComposerDraftsForEnvironment,
+  replaceComposerDraftAttachment,
   replaceComposerDraftAttachments,
   resetComposerDraftsLoadState,
   restoreComposerDraftSnapshotState,
@@ -619,6 +620,43 @@ describe("mobile composer drafts", () => {
     expect(after.context?.records.map((record) => record.contextId)).toEqual([
       before.context?.records[0]?.contextId,
     ]);
+  });
+
+  it("swaps an annotated image into its slot and moves its chip to the copy", () => {
+    const key = "new-task:draft-annotate";
+    const image = (id: string, name: string) => ({
+      type: "image" as const,
+      id,
+      name,
+      mimeType: "image/png",
+      sizeBytes: 3,
+      dataUrl: "data:image/png;base64,YWJj",
+      previewUri: "data:image/png;base64,YWJj",
+    });
+    const before = image("before", "before.png");
+    const original = image("original", "shot.png");
+    const after = image("after", "after.png");
+    appendComposerDraftAttachments(key, [before, original, after], { appendReference: true });
+    const draft = getComposerDraftSnapshot(key);
+    const copy = { ...image("annotated", "shot.jpg"), mimeType: "image/jpeg", sizeBytes: 9 };
+
+    expect(replaceComposerDraftAttachment(key, original.id, copy)).toBe(true);
+
+    const replaced = getComposerDraftSnapshot(key);
+    expect(replaced.attachments.map((attachment) => attachment.id)).toEqual([
+      before.id,
+      copy.id,
+      after.id,
+    ]);
+    expect(replaced.text).toBe(draft.text);
+    expect(replaced.context?.records[1]).toEqual({
+      ...draft.context?.records[1],
+      attachmentId: copy.id,
+      name: copy.name,
+      mimeType: copy.mimeType,
+      sizeBytes: copy.sizeBytes,
+    });
+    expect(replaceComposerDraftAttachment(key, original.id, copy)).toBe(false);
   });
 
   it("keeps over-limit recovery context reloadable without losing other drafts", () => {

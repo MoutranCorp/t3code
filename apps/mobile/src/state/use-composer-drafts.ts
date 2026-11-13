@@ -1495,6 +1495,49 @@ export function removeComposerDraftAttachment(draftKey: string, imageId: string)
   );
 }
 
+/**
+ * Puts an edited copy in the attachment's slot and moves its context reference over. The copy
+ * takes a new id because uploads are keyed by id, so the old bytes' upload is never reused.
+ */
+export function replaceComposerDraftAttachment(
+  draftKey: string,
+  previousId: string,
+  next: DraftComposerAttachment,
+): boolean {
+  let previous: DraftComposerAttachment | undefined;
+  updateComposerDrafts((current) => {
+    const draft = current[draftKey];
+    previous = draft?.attachments.find((attachment) => attachment.id === previousId);
+    if (!draft || !previous) return current;
+    const context = draft.context && {
+      ...draft.context,
+      records: draft.context.records.map((record) =>
+        "attachmentId" in record && record.attachmentId === previousId
+          ? {
+              ...record,
+              attachmentId: next.id,
+              name: next.name,
+              mimeType: next.mimeType,
+              sizeBytes: next.sizeBytes,
+            }
+          : record,
+      ),
+    };
+    return {
+      ...current,
+      [draftKey]: {
+        ...draft,
+        ...(context ? { context } : {}),
+        attachments: draft.attachments.map((attachment) =>
+          attachment.id === previousId ? next : attachment,
+        ),
+      },
+    };
+  });
+  if (previous) scheduleUnusedComposerAttachmentCleanup([previous]);
+  return previous !== undefined;
+}
+
 export function setComposerDraftAttachmentUpload(
   draftKey: string,
   attachment: DraftComposerAttachment,

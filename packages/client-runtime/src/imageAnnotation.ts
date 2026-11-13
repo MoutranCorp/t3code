@@ -61,8 +61,12 @@ export interface TextAnnotation {
 
 export const ANNOTATION_TEXT_LINE_HEIGHT = 1.2;
 
-export function annotationFont(fontSize: number): string {
-  return `600 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+/** A contrasting outline that keeps text legible on both light and dark screenshots. */
+export function annotationHaloColor(color: string): string {
+  const value = Number.parseInt(color.slice(1), 16);
+  const luminance =
+    (0.299 * ((value >> 16) & 0xff) + 0.587 * ((value >> 8) & 0xff) + 0.114 * (value & 0xff)) / 255;
+  return luminance > 0.6 ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.9)";
 }
 
 // Sizes scale with the image so a mark reads the same on screen at any resolution.

@@ -108,6 +108,7 @@ import IconPlayerStopFilled from "@tabler/icons-react-native/IconPlayerStopFille
 import IconPlus from "@tabler/icons-react-native/IconPlus";
 import IconQrcode from "@tabler/icons-react-native/IconQrcode";
 import IconRefresh from "@tabler/icons-react-native/IconRefresh";
+import IconRectangle from "@tabler/icons-react-native/IconRectangle";
 import IconRobot from "@tabler/icons-react-native/IconRobot";
 import IconSearch from "@tabler/icons-react-native/IconSearch";
 import IconShare from "@tabler/icons-react-native/IconShare";
@@ -252,6 +253,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   minus: IconMinus,
   "slash.circle": IconBan,
   "qrcode.viewfinder": IconQrcode,
+  rectangle: IconRectangle,
   "point.3.connected.trianglepath.dotted": IconNetwork,
   flowchart: IconSitemap,
   "point.topleft.down.curvedto.point.bottomright.up": IconGitMerge,
@@ -282,6 +284,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "ellipsis.bubble": IconMessageDots,
   robot: IconRobot,
   "text.word.spacing": IconLetterSpacing,
+  textformat: IconTypography,
   "textformat.size": IconTypography,
   "textformat.size.larger": IconTextIncrease,
   "textformat.size.smaller": IconTextDecrease,

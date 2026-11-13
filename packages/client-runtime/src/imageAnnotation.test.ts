@@ -16,7 +16,7 @@ import {
   type TextAnnotation,
   toImagePoint,
   undoAnnotation,
-} from "./imageAnnotation.logic";
+} from "./imageAnnotation.ts";
 
 function rect(id: string): AnnotationOp {
   return { kind: "rect", id, color: "#ff3b30", width: 4, from: { x: 0, y: 0 }, to: { x: 9, y: 9 } };
