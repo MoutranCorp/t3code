@@ -95,7 +95,7 @@ function ActiveIndicator() {
   return (
     <span
       aria-hidden
-      className="absolute top-1/2 -left-1.5 h-5 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-foreground"
+      className="absolute top-1/2 -left-1.5 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary"
     />
   );
 }
@@ -122,7 +122,10 @@ const RailProjectButton = memo(function RailProjectButton(props: {
               type="button"
               aria-current={props.active ? "page" : undefined}
               aria-label={summary ? `${project.displayName}, ${summary}` : project.displayName}
-              className={cn(RAIL_BUTTON_CLASS, props.active && "bg-sidebar-row-hover")}
+              className={cn(
+                RAIL_BUTTON_CLASS,
+                props.active && "bg-primary/15 ring-1 ring-primary/50 ring-inset",
+              )}
               onClick={() => props.onOpen(project)}
               onContextMenu={(event) => {
                 event.preventDefault();
@@ -483,7 +486,10 @@ export function ProjectRail(props: { readonly reserveWindowControls: boolean }) 
             type="button"
             aria-label="Home"
             aria-current={homeActive ? "page" : undefined}
-            className={cn(RAIL_BUTTON_CLASS, homeActive && "bg-sidebar-row-hover")}
+            className={cn(
+              RAIL_BUTTON_CLASS,
+              homeActive && "bg-primary/15 ring-1 ring-primary/50 ring-inset",
+            )}
             onClick={() => void router.navigate({ to: "/home" })}
           />
         }

@@ -76,8 +76,8 @@ const ThreadTabItem = memo(function ThreadTabItem(props: {
         "group/thread-tab flex h-7 max-w-52 min-w-24 shrink-0 items-center rounded-md text-xs",
         active
           ? props.paneFocused
-            ? "bg-accent text-foreground"
-            : "bg-accent/50 text-foreground"
+            ? "bg-primary/15 font-medium text-foreground ring-1 ring-primary/60 ring-inset"
+            : "bg-accent text-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
         placement === "other" && "ring-1 ring-border ring-inset",
         isDragging && "relative z-10",
