@@ -195,6 +195,7 @@ import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
+import { ThreadTabStrip } from "./tabs/ThreadTabStrip";
 import { toastManager } from "./ui/toast";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId } from "~/lib/utils";
@@ -3355,6 +3356,7 @@ export default function ChatView(props: ChatViewProps) {
             />
           </header>
         )}
+        {embedded ? null : <ThreadTabStrip />}
 
         <div className="relative flex min-h-0 min-w-0 flex-1">
           <ThreadFindCanvas

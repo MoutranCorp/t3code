@@ -5,6 +5,7 @@ import {
   MAX_KEYBINDINGS_COUNT,
   MAX_WHEN_EXPRESSION_DEPTH,
   MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
+  PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS,
   type ResolvedKeybindingRule,
   type ResolvedKeybindingsConfig,
   THREAD_JUMP_KEYBINDING_COMMANDS,
@@ -74,6 +75,11 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+w", command: "terminal.close", when: "terminalFocus" },
   { key: "mod+w", command: "rightPanel.close", when: "!terminalFocus" },
   { key: "mod+shift+t", command: "view.reopenClosed" },
+  // Browsers keep Ctrl+Tab for their own tabs, so it reaches only the desktop app.
+  { key: "ctrl+tab", command: "threadTab.next" },
+  { key: "ctrl+shift+tab", command: "threadTab.previous" },
+  { key: "mod+alt+w", command: "threadTab.close" },
+  { key: "mod+alt+t", command: "threadTab.reopenClosed" },
   { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },
   { key: "mod+shift+j", command: "preview.toggle" },
   { key: "mod+r", command: "preview.refresh", when: "previewFocus" },
@@ -140,6 +146,11 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
     key: `mod+${index + 1}`,
     command,
     when: "modelPickerOpen && isDesktop",
+  })),
+  // Not mod+shift: macOS keeps Cmd+Shift+3 to 6 for screenshots.
+  ...PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+    key: `mod+alt+${index + 1}`,
+    command,
   })),
   { key: "c", command: "usage.cost", when: "usagePageOpen" },
   { key: "t", command: "usage.tokens", when: "usagePageOpen" },

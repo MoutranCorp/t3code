@@ -45,6 +45,7 @@ import { SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
 import { isAppModalPage } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import { useSidebarStageBackdropVariant } from "./SidebarStageBackdrop";
+import { ProjectRail } from "./tabs/ProjectRail";
 import {
   clampThreadSidebarWidth,
   resolveInitialThreadSidebarWidth,
@@ -381,7 +382,8 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
     <div
       ref={appShellCommandsRef}
       className={cn(
-        "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
+        // Right of the project bar, unless the macOS traffic lights already push it further.
+        "pointer-events-none fixed left-[max(var(--workspace-controls-left),calc(var(--sidebar-offset-left,0px)+0.75rem))] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
         mobileSidebarSheetMounted && "hidden",
       )}
       data-sidebar-control=""
@@ -427,9 +429,11 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
 export function AppSidebarLayout({
   children,
   showSidebar = true,
+  showProjectRail = true,
 }: {
   children: ReactNode;
   showSidebar?: boolean;
+  showProjectRail?: boolean;
 }) {
   const sidebarArea = workspaceAreaProps("sidebar", 0, "Threads");
   const [sidebarRouteReveal] = useState<SidebarRouteReveal>(() => ({
@@ -474,11 +478,14 @@ export function AppSidebarLayout({
   return (
     <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
       <SidebarProvider
-        className="h-dvh! min-h-0!"
+        className={cn("h-dvh! min-h-0!", showProjectRail && "md:[--sidebar-offset-left:3rem]")}
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         storageKey="chat_thread_sidebar_open"
         style={sidebarProviderStyle}
       >
+        {showProjectRail ? (
+          <ProjectRail reserveWindowControls={isMacosDesktop && !isWindowFullscreen} />
+        ) : null}
         {showSidebar ? (
           <>
             <SidebarBrandWidthProbe isElectron={isElectron} onWidthChange={setBrandWidth} />

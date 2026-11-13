@@ -57,6 +57,21 @@ in a new thread's model picker to add or remove them. A regular click returns to
 single model. Choose a base branch and send. Each selection starts a separate thread
 and worktree while you stay in the new thread composer. This requires a Git project.
 
+## Work across projects
+
+On web and desktop, every thread you open gets a tab above the conversation, like a
+browser. Drag tabs to reorder them, and middle-click or use **×** to close one; closing
+the last tab returns to Home. A dot on a tab says the thread is working, finished since
+you last looked, failed, or waiting for you. **+** starts a thread in the current tab's
+project.
+
+The project bar on the left edge shows Home, your pinned projects, and any project with
+an open tab or a thread that is working or waiting for you. Selecting a project returns
+to the tab you last had open there, or opens its project screen. Right-click a project
+to pin it or close all its tabs. The bell at the bottom lists every thread, in any
+project, that is waiting for you or finished since you last looked. See
+[keybindings](./keybindings.md#commands-with-special-behavior) for tab shortcuts.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.

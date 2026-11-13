@@ -1,4 +1,5 @@
 import {
+  PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS,
   STATIC_KEYBINDING_COMMANDS,
   type KeybindingCommand,
   type KeybindingShortcut,
@@ -383,6 +384,14 @@ export function commandLabel(command: KeybindingCommand): string {
   const usagePeriod = WINDOW_OPTIONS.find((option) => option.command === command);
   if (usagePeriod) return `Usage: Period: ${usagePeriod.label}`;
   if (command === "view.reopenClosed") return "Reopen Closed Tab";
+  if (command === "threadTab.next") return "Thread Tabs: Next Tab";
+  if (command === "threadTab.previous") return "Thread Tabs: Previous Tab";
+  if (command === "threadTab.close") return "Thread Tabs: Close Tab";
+  if (command === "threadTab.reopenClosed") return "Thread Tabs: Reopen Closed Thread Tab";
+  const railJump = PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS.indexOf(
+    command as (typeof PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS)[number],
+  );
+  if (railJump >= 0) return `Project Bar: Open Project ${railJump + 1}`;
   if (command === "preview.focusUrl") return "Preview: Focus URL";
   if (command === "preview.find") return "Preview: Find on Page";
   const raw = String(command);

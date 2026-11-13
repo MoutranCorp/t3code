@@ -190,10 +190,17 @@ through the pages you have visited, like a browser's back and forward buttons.
 [new-thread defaults](./thread-sidebar.md#start-a-thread). `chat.newWithoutProject`
 (`mod+alt+n`) starts a thread [without a project](./thread-sidebar.md#start-without-a-project).
 
+Thread tabs have their own commands. `threadTab.next` and `threadTab.previous`
+(`ctrl+tab` and `ctrl+shift+tab`) switch tabs; browsers keep those keys, so in a
+browser use the command palette or rebind them. `threadTab.close` (`mod+alt+w`) closes the
+current tab and `threadTab.reopenClosed` (`mod+alt+t`) reopens the last one you closed.
+`projectRail.jump.1` to `projectRail.jump.9` (`mod+alt+1` to `mod+alt+9`) open the
+projects in the project bar from the top, returning to the thread you last had open there.
+
 ## Reserved shortcuts
 
 In the desktop app, `mod+w` closes the focused terminal or the active right-panel
-tab. When nothing remains to close, it does nothing; it never closes the window. In a browser, `mod+w`
+tab. With neither open, it closes the current thread tab; it never closes the window. In a browser, `mod+w`
 closes the browser tab; rebind `rightPanel.close` and `terminal.close` to an available
 shortcut such as `alt+w`.
 

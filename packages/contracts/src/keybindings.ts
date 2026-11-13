@@ -34,6 +34,20 @@ export const MODEL_PICKER_JUMP_KEYBINDING_COMMANDS = [
 export type ModelPickerJumpKeybindingCommand =
   (typeof MODEL_PICKER_JUMP_KEYBINDING_COMMANDS)[number];
 
+export const PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS = [
+  "projectRail.jump.1",
+  "projectRail.jump.2",
+  "projectRail.jump.3",
+  "projectRail.jump.4",
+  "projectRail.jump.5",
+  "projectRail.jump.6",
+  "projectRail.jump.7",
+  "projectRail.jump.8",
+  "projectRail.jump.9",
+] as const;
+export type ProjectRailJumpKeybindingCommand =
+  (typeof PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS)[number];
+
 const THREAD_KEYBINDING_COMMANDS = [
   "thread.stop",
   "thread.steerQueuedMessage",
@@ -72,6 +86,11 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "rightPanel.toggleMaximized",
   "rightPanel.close",
   "view.reopenClosed",
+  "threadTab.next",
+  "threadTab.previous",
+  "threadTab.close",
+  "threadTab.reopenClosed",
+  ...PROJECT_RAIL_JUMP_KEYBINDING_COMMANDS,
   "pullRequest.copyNumber",
   "diff.toggle",
   "preview.toggle",

@@ -201,6 +201,7 @@ function RootRouteBranch() {
       {/* Setup starts with an empty workspace, so the Welcome page has no thread list. */}
       <AppSidebarLayout
         showSidebar={!isWelcome && pathname !== "/home" && !pathname.startsWith("/project/")}
+        showProjectRail={!isWelcome}
       >
         <Outlet />
       </AppSidebarLayout>

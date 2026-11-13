@@ -57,6 +57,7 @@ import { environmentProjects } from "./state/projects";
 import { primaryServerConfigAtom } from "./state/server";
 import { environmentShell } from "./state/shell";
 import { installChatRouteCommands } from "./shortcuts/chatRouteCommands";
+import { startThreadTabTracking } from "./components/tabs/threadTabNavigation";
 import { startWorkspaceFocus } from "./lib/workspaceFocus";
 import { startI18n } from "./i18n/runtime";
 import { installCommandPaletteCommands } from "./shortcuts/commandPaletteCommands";
@@ -265,6 +266,7 @@ export function startAppServices(): AppRouter {
   installCommandPaletteCommands(router);
   registerOpenFavoriteEditorCommand();
   startThreadOverlayRetention(router);
+  startThreadTabTracking(router);
   // Drafts promote as their server threads arrive, wherever the user is.
   subscribeDraftThreadPromotion({
     registry: appAtomRegistry,

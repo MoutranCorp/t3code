@@ -54,9 +54,10 @@ import {
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
 } from "@t3tools/contracts";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
+  ArrowRightIcon,
   BugIcon,
   ChartNoAxesColumnIcon,
   CheckIcon,
@@ -66,6 +67,7 @@ import {
   FolderGit2Icon,
   FolderIcon,
   FolderPlusIcon,
+  FolderSearchIcon,
   MessageSquareDashedIcon,
   LinkIcon,
   MessageSquareIcon,
@@ -79,6 +81,7 @@ import {
   SquarePenIcon,
   TextSearchIcon,
   UserPlusIcon,
+  XIcon,
 } from "lucide-react";
 import { openThreadFind } from "./chat/threadFindStore";
 import { dispatchPreviewAction } from "./preview/previewActionBus";
@@ -181,6 +184,10 @@ import {
   newProjectId,
 } from "../lib/utils";
 import { buildThreadRouteParams } from "../threadRoutes";
+import { dispatchMenuAction } from "../shortcuts/dispatcher";
+import { useThreadTabsStore } from "../threadTabsStore";
+import { openProjectFromTabs } from "./tabs/openProjectFromTabs";
+import { ProjectFavicon } from "./ProjectFavicon";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
   applyWslEnvironmentConfiguration,
@@ -191,6 +198,7 @@ import {
 import {
   resolveCommandPaletteProject,
   ADDON_ICON_CLASS,
+  buildProjectActionItems,
   browseInputEndPaddingClass,
   buildBrowseGroups,
   buildRootGroups,
@@ -277,6 +285,11 @@ import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import { threadRecentUse } from "@t3tools/shared/paletteSearch";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
+
+function projectFaviconIcon(project: CommandPaletteProject) {
+  return <ProjectFavicon project={project} className={ITEM_ICON_CLASS} />;
+}
+
 const ADD_PROJECT_ENTRY_GROUP = "add-project";
 const NEW_THREAD_IN_GROUP = "projects";
 
@@ -411,7 +424,9 @@ function OpenCommandPaletteDialog(props: {
   readonly initialContext: CommandPaletteReturnContext | undefined;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const pathname = useLocation({ select: (location) => location.pathname });
+  const hasClosedThreadTabs = useThreadTabsStore((state) => state.closed.length > 0);
   const { openChildSearch, setOpen } = props;
   // Keyed by palette session: the intent and restored search only seed this
   // mount, and closing must not change what the closing palette shows.
@@ -1529,6 +1544,74 @@ function OpenCommandPaletteDialog(props: {
       openChildSearch("files", { query, linkedThreadSearch });
     },
   });
+
+  if (pickerProjects.length > 0) {
+    actionItems.push({
+      kind: "submenu",
+      value: "action:go-to-project",
+      searchTerms: ["go to project", "switch project", "open project", "jump"],
+      title: "Go to project...",
+      icon: <FolderSearchIcon className={ITEM_ICON_CLASS} />,
+      addonIcon: <FolderSearchIcon className={ADDON_ICON_CLASS} />,
+      groups: [
+        {
+          value: "go-to-project",
+          label: "Projects",
+          items: buildProjectActionItems({
+            projects: pickerProjects,
+            valuePrefix: "go-to-project",
+            icon: projectFaviconIcon,
+            runProject: (project) =>
+              openProjectFromTabs(
+                router,
+                projectGroupByTargetKey.get(`${project.environmentId}:${project.id}`) ?? {
+                  environmentId: project.environmentId,
+                  id: project.id,
+                  memberProjectRefs: [scopeProjectRef(project.environmentId, project.id)],
+                },
+              ),
+          }),
+        },
+      ],
+    });
+  }
+
+  // The project bar registers these; the palette runs them as their shortcuts would.
+  if (paletteRouteTarget !== null) {
+    const tabAction = (
+      command: "threadTab.next" | "threadTab.previous" | "threadTab.close",
+      title: string,
+      icon: ReactNode,
+    ): CommandPaletteActionItem => ({
+      kind: "action",
+      value: `action:${command}`,
+      searchTerms: [title, "thread tab", "switch tab"],
+      title,
+      icon,
+      shortcutCommand: command,
+      run: async () => dispatchMenuAction(command),
+    });
+    actionItems.push(
+      tabAction("threadTab.next", "Next tab", <ArrowRightIcon className={ITEM_ICON_CLASS} />),
+      tabAction(
+        "threadTab.previous",
+        "Previous tab",
+        <ArrowLeftIcon className={ITEM_ICON_CLASS} />,
+      ),
+      tabAction("threadTab.close", "Close tab", <XIcon className={ITEM_ICON_CLASS} />),
+    );
+  }
+  if (hasClosedThreadTabs) {
+    actionItems.push({
+      kind: "action",
+      value: "action:threadTab.reopenClosed",
+      searchTerms: ["reopen closed tab", "undo close tab", "thread tab"],
+      title: "Reopen closed thread tab",
+      icon: <RotateCcwIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "threadTab.reopenClosed",
+      run: async () => dispatchMenuAction("threadTab.reopenClosed"),
+    });
+  }
 
   actionItems.push({
     kind: "action",
