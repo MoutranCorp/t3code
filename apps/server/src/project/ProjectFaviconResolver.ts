@@ -71,6 +71,16 @@ const ICON_SOURCE_FILES = [
   "src/index.html",
 ] as const;
 
+// A repo that keeps its site in a subfolder declares its icon in that folder's index.html.
+const APP_DIRECTORIES = ["web", "client", "frontend"] as const;
+const ICON_SOURCES: ReadonlyArray<{ readonly file: string; readonly appDirectory: string }> = [
+  ...ICON_SOURCE_FILES.map((file) => ({ file, appDirectory: "" })),
+  ...APP_DIRECTORIES.map((appDirectory) => ({
+    file: `${appDirectory}/index.html`,
+    appDirectory,
+  })),
+];
+
 // Anchor HTML at <link and scan brace-free metadata runs to avoid quadratic regex rescans.
 const LINK_ICON_HTML_RE =
   /<link\b(?=[^>]*\brel=["'](?:icon|shortcut icon)["'])(?=[^>]*\bhref=["']([^"'?]+))[^>]*>/i;
@@ -142,9 +152,9 @@ export const make = Effect.gen(function* () {
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const projectFileLoader = yield* T3ProjectFileLoader.T3ProjectFileLoader;
 
-  const resolveIconHref = (href: string): ReadonlyArray<string> => {
+  const resolveIconHref = (href: string, appDirectory: string): ReadonlyArray<string> => {
     const clean = href.replace(/^\//, "");
-    return [path.join("public", clean), clean];
+    return [path.join(appDirectory, "public", clean), path.join(appDirectory, clean)];
   };
 
   const findExistingFile = Effect.fn("ProjectFaviconResolver.findExistingFile")(function* (
@@ -194,6 +204,7 @@ export const make = Effect.gen(function* () {
   const findIconFromSource = Effect.fn("ProjectFaviconResolver.findIconFromSource")(function* (
     projectCwd: string,
     sourceFile: string,
+    appDirectory: string,
   ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
     const sourcePath = yield* workspacePaths
       .resolveRelativePathWithinRoot({
@@ -230,7 +241,7 @@ export const make = Effect.gen(function* () {
     if (!href) {
       return null;
     }
-    return yield* findExistingFile(projectCwd, resolveIconHref(href), "workspace");
+    return yield* findExistingFile(projectCwd, resolveIconHref(href, appDirectory), "workspace");
   });
 
   // Probe concurrently but join in list order so lower-ranked probes cannot delay a hit.
@@ -289,8 +300,8 @@ export const make = Effect.gen(function* () {
       return wellKnown;
     }
 
-    return yield* firstInOrder(ICON_SOURCE_FILES, (sourceFile) =>
-      findIconFromSource(projectCwd, sourceFile),
+    return yield* firstInOrder(ICON_SOURCES, (source) =>
+      findIconFromSource(projectCwd, source.file, source.appDirectory),
     );
   });
 

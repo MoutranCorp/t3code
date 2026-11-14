@@ -182,6 +182,19 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
+    it.effect("resolves an icon href declared by a site kept in a subfolder", () =>
+      Effect.gen(function* () {
+        const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "web/index.html", '<link rel="icon" href="/icons/logo.png?v=3">');
+        yield* writeTextFile(cwd, "web/public/icons/logo.png", "png");
+
+        const resolved = yield* resolver.resolvePath(cwd);
+
+        expect(resolved).toBe((yield* Path.Path).join(cwd, "web", "public", "icons", "logo.png"));
+      }),
+    );
+
     it.effect("resolves icon hrefs from object-literal route metadata", () =>
       Effect.gen(function* () {
         const resolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
