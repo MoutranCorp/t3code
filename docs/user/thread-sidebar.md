@@ -60,8 +60,10 @@ and worktree while you stay in the new thread composer. This requires a Git proj
 ## Work across projects
 
 On web and desktop, every thread you open gets a tab above the conversation, like a
-browser. Drag tabs to reorder them, and middle-click or use **×** to close one; closing
-the last tab returns to Home. A dot on a tab says the thread is working, finished since
+browser. The tab bar lists the open threads of the current project only; switch projects
+in the project bar to see another project's tabs. Drag tabs to reorder them, and
+middle-click or use **×** to close one; closing a project's last tab opens its project
+screen. A dot on a tab says the thread is working, finished since
 you last looked, failed, or waiting for you. **+** starts a thread in the current tab's
 project.
 

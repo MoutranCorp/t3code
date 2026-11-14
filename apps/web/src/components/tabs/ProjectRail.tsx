@@ -44,6 +44,7 @@ import {
   buildRailProjects,
   describeThreadMarkCounts,
   deriveShownThreadTabs,
+  projectThreadTabs,
   strongestThreadMark,
   summarizeThreadMarks,
   THREAD_MARK_LABEL,
@@ -368,14 +369,18 @@ export function ProjectRail(props: { readonly reserveWindowControls: boolean }) 
       const { shownSplit } = useThreadTabsStore.getState();
       const pane = readFocusedPane();
       const activeKey = pane === "secondary" ? shownSplit : routeKey;
-      const shownKeys = shown.map((tab) => tab.key);
+      // Cycling and closing stay inside the focused pane's project, as its tab bar does.
+      const projectTabs = projectThreadTabs(shown, activeKey);
+      const shownKeys = projectTabs.map((tab) => tab.key);
       switch (command) {
         case "threadTab.next":
         case "threadTab.previous": {
           const paneTabs =
             pane === "secondary"
-              ? shown.filter((tab) => tab.key !== routeKey && tab.tab.target.kind === "thread")
-              : shown.filter((tab) => tab.key !== shownSplit);
+              ? projectTabs.filter(
+                  (tab) => tab.key !== routeKey && tab.tab.target.kind === "thread",
+                )
+              : projectTabs.filter((tab) => tab.key !== shownSplit);
           const next = adjacentThreadTab(
             paneTabs,
             activeKey,
@@ -389,7 +394,12 @@ export function ProjectRail(props: { readonly reserveWindowControls: boolean }) 
         }
         case "threadTab.close":
           if (activeKey === null || !shownKeys.includes(activeKey)) return false;
-          closeThreadTabsAndNavigate(router, [activeKey], shownKeys);
+          closeThreadTabsAndNavigate(
+            router,
+            [activeKey],
+            shownKeys,
+            shown.find((tab) => tab.key === routeKey)?.projectRef,
+          );
           return true;
         case "splitView.toggle":
           return toggleSplitView(router, shown);

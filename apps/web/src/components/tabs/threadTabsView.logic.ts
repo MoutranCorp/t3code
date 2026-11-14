@@ -181,6 +181,21 @@ export function deriveShownThreadTabs<
   });
 }
 
+/** A pane's tab bar lists only the tabs of the project its thread belongs to. */
+export function projectThreadTabs<
+  T extends {
+    readonly key: string;
+    readonly projectRef: ScopedProjectRef;
+    readonly project: { readonly projectKey: string } | null;
+  },
+>(shown: readonly T[], activeKey: string | null): readonly T[] {
+  const projectOf = (tab: T) => tab.project?.projectKey ?? projectRefKey(tab.projectRef);
+  const active = shown.find((tab) => tab.key === activeKey);
+  if (!active) return shown;
+  const activeProject = projectOf(active);
+  return shown.filter((tab) => projectOf(tab) === activeProject);
+}
+
 /**
  * The project bar: pinned projects in Home's dock order, then projects with a shown tab in
  * tab order, then projects with a thread working or waiting on the user.

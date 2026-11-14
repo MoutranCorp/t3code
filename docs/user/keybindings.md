@@ -191,7 +191,7 @@ through the pages you have visited, like a browser's back and forward buttons.
 (`mod+alt+n`) starts a thread [without a project](./thread-sidebar.md#start-without-a-project).
 
 Thread tabs have their own commands. `threadTab.next` and `threadTab.previous`
-(`ctrl+tab` and `ctrl+shift+tab`) switch tabs; browsers keep those keys, so in a
+(`ctrl+tab` and `ctrl+shift+tab`) switch between the current project's tabs; browsers keep those keys, so in a
 browser use the command palette or rebind them. `threadTab.close` (`mod+alt+w`) closes the
 current tab and `threadTab.reopenClosed` (`mod+alt+t`) reopens the last one you closed.
 `projectRail.jump.1` to `projectRail.jump.9` (`mod+alt+1` to `mod+alt+9`) open the

@@ -6,6 +6,7 @@ import {
   buildRailProjects,
   deriveShownThreadTabs,
   describeThreadMarkCounts,
+  projectThreadTabs,
   resolveThreadMark,
   strongestThreadMark,
   summarizeThreadMarks,
@@ -144,6 +145,23 @@ describe("deriveShownThreadTabs", () => {
       ["env:live", "Live", alpha.projectKey],
       ["draft:d1", "New thread", alpha.projectKey],
     ]);
+  });
+});
+
+describe("projectThreadTabs", () => {
+  it("keeps the tabs of the active tab's project, in order", () => {
+    const tab = (key: string, projectKey: string | null) => ({
+      key,
+      projectRef: { environmentId, projectId: ProjectId.make(projectKey ?? "loose") },
+      project: projectKey === null ? null : { projectKey },
+    });
+    const shown = [tab("a1", "alpha"), tab("b1", "beta"), tab("a2", "alpha"), tab("x", null)];
+    const keys = (activeKey: string | null) =>
+      projectThreadTabs(shown, activeKey).map((entry) => entry.key);
+    expect(keys("a2")).toEqual(["a1", "a2"]);
+    expect(keys("b1")).toEqual(["b1"]);
+    expect(keys("x")).toEqual(["x"]);
+    expect(keys(null)).toEqual(["a1", "b1", "a2", "x"]);
   });
 });
 

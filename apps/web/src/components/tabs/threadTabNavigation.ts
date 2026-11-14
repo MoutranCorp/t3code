@@ -1,5 +1,5 @@
 import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
-import type { ScopedThreadRef } from "@t3tools/contracts";
+import type { ScopedProjectRef, ScopedThreadRef } from "@t3tools/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 
 import { useComposerDraftStore } from "../../composerDraftStore";
@@ -94,16 +94,23 @@ export function navigateToThreadTab(
 
 /**
  * Closes tabs in either pane. When the main pane's tab closed, shows its neighbour, the second
- * pane's tab, or Home after the last.
+ * pane's tab, or after the last one `emptyProject`'s screen, else Home.
  */
 export function closeThreadTabsAndNavigate(
   router: AnyRouter,
   keys: readonly string[],
   shownKeys: readonly string[],
+  emptyProject?: ScopedProjectRef | null,
 ): void {
   const next = useThreadTabsStore.getState().close(keys, shownKeys, readActiveThreadTabKey(router));
   if (next === undefined) return;
-  void (next === null ? router.navigate({ to: "/home" }) : navigateToThreadTab(router, next));
+  if (next !== null) void navigateToThreadTab(router, next);
+  else if (emptyProject) {
+    void router.navigate({
+      to: "/project/$environmentId/$projectId",
+      params: { environmentId: emptyProject.environmentId, projectId: emptyProject.projectId },
+    });
+  } else void router.navigate({ to: "/home" });
 }
 
 function splitTab(): ThreadTab | null {

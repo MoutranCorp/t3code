@@ -26,7 +26,12 @@ import {
   useActiveThreadTabKey,
 } from "./threadTabNavigation";
 import { ThreadMarkDot } from "./ThreadMarkDot";
-import { resolveThreadMark, withLocalVisit, type ThreadMark } from "./threadTabsView.logic";
+import {
+  projectThreadTabs,
+  resolveThreadMark,
+  withLocalVisit,
+  type ThreadMark,
+} from "./threadTabsView.logic";
 import { useShownThreadTabs, type ShownTab } from "./useShownThreadTabs";
 
 const TAB_DRAG_MODIFIERS = [restrictToHorizontalAxis, restrictToFirstScrollableAncestor];
@@ -177,8 +182,8 @@ function StripIconButton(props: {
 }
 
 /**
- * Browser-style tabs over a pane's thread. Both split panes list the same tabs; the main pane's
- * active tab is the route's, the second pane's is its own.
+ * Browser-style tabs over a pane's thread, listing the tabs of that thread's project. The main
+ * pane's active tab is the route's, the second pane's is its own.
  */
 export function ThreadTabStrip(props: {
   readonly pane: ThreadPane;
@@ -187,7 +192,7 @@ export function ThreadTabStrip(props: {
 }) {
   const router = useRouter();
   const handleNewThread = useNewThreadHandler();
-  const { shown } = useShownThreadTabs();
+  const { shown: allShown } = useShownThreadTabs();
   const routeKey = useActiveThreadTabKey();
   const shownSplit = useThreadTabsStore((state) => state.shownSplit);
   const focusedPane = useThreadTabsStore((state) => state.focusedPane);
@@ -200,7 +205,9 @@ export function ThreadTabStrip(props: {
   const otherKey = secondary ? routeKey : shownSplit;
   const splitShown = shownSplit !== null;
   const paneFocused = !splitShown || (focusedPane === "secondary") === secondary;
+  const shown = projectThreadTabs(allShown, activeKey);
   const activeTab = shown.find((tab) => tab.key === activeKey) ?? null;
+  const routeProjectRef = allShown.find((tab) => tab.key === routeKey)?.projectRef;
 
   const activeTabKey = activeTab?.key ?? null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the active tab's DOM node into view when navigation elsewhere changes it
@@ -216,7 +223,7 @@ export function ThreadTabStrip(props: {
     activateThreadTab(router, props.pane, tab);
   });
   const onClose = useStableCallback((tab: ShownTab) =>
-    closeThreadTabsAndNavigate(router, [tab.key], shownKeys),
+    closeThreadTabsAndNavigate(router, [tab.key], shownKeys, routeProjectRef),
   );
   const onContextMenu = useStableCallback(
     (tab: ShownTab, position: { readonly x: number; readonly y: number }) => {
@@ -244,7 +251,7 @@ export function ThreadTabStrip(props: {
         if (clicked._tag === "Failure" || clicked.value === null) return;
         switch (clicked.value) {
           case "open-in-split":
-            openThreadTabInSplit(router, tab, shown);
+            openThreadTabInSplit(router, tab, allShown);
             return;
           case "open-in-main":
             activateThreadTab(router, "primary", tab);
@@ -253,7 +260,7 @@ export function ThreadTabStrip(props: {
             useThreadTabsStore.getState().closeSplit();
             return;
           case "close":
-            closeThreadTabsAndNavigate(router, [tab.key], shownKeys);
+            closeThreadTabsAndNavigate(router, [tab.key], shownKeys, routeProjectRef);
             return;
           case "close-others":
             closeThreadTabsAndNavigate(
