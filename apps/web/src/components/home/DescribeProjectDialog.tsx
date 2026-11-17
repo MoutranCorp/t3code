@@ -159,7 +159,7 @@ export function DescribeProjectDialog(props: { readonly onClose: () => void }) {
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
             <DialogDescription>
-              Describe it and T3 Code makes the folder, then starts an agent on it.
+              Describe it and Facio makes the folder, then starts an agent on it.
             </DialogDescription>
           </DialogHeader>
           <DialogPanel>

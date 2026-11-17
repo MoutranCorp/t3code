@@ -272,7 +272,7 @@ export function runPhoneAddresses(
   for (const endpoint of endpoints) {
     if (endpoint.reachability !== "lan" && endpoint.reachability !== "private-network") continue;
     const base = parseUrl(endpoint.httpBaseUrl);
-    // HTTPS endpoints are proxies for T3 Code's own port, not the app's.
+    // HTTPS endpoints are proxies for Facio's own port, not the app's.
     if (!base || base.protocol !== "http:" || endpoint.status === "unavailable") continue;
     const url = new URL(server.href);
     url.hostname = base.hostname;
@@ -292,7 +292,7 @@ function parseUrl(raw: string): URL | null {
 export function noRunTargetPrompt(): string {
   return [
     "Work out how to run this project locally: install its dependencies if needed, then start it (usually a dev server).",
-    'When it runs, write a `t3.json` at the project root with a `scripts` array whose entries have `name`, `command` and `icon` (use `"play"` for the main run command) so the T3 Code Run button can pick it up.',
+    'When it runs, write a `t3.json` at the project root with a `scripts` array whose entries have `name`, `command` and `icon` (use `"play"` for the main run command) so the Facio Run button can pick it up.',
   ].join("\n\n");
 }
 

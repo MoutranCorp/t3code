@@ -85,7 +85,7 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-const APP_BASE_NAME = "Omnicode";
+const APP_BASE_NAME = "Facio";
 
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;

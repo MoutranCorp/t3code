@@ -25,7 +25,7 @@ export class ProjectIconUnusableError extends Schema.TaggedError<ProjectIconUnus
   { projectId: ProjectId },
 ) {
   override get message(): string {
-    return "The model did not return a drawing T3 Code can show. Try again.";
+    return "The model did not return a drawing Facio can show. Try again.";
   }
 }
 

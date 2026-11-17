@@ -9,13 +9,13 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
 if ($Shortcut) {
-    $linkPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'Omnicode.lnk'
+    $linkPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'Facio.lnk'
     $link = (New-Object -ComObject WScript.Shell).CreateShortcut($linkPath)
     $link.TargetPath = Join-Path $PSHOME 'powershell.exe'
     $link.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File `"$PSCommandPath`" -Desktop"
     $link.WorkingDirectory = $PSScriptRoot
     $link.IconLocation = Join-Path $PSScriptRoot 'assets\prod\t3-black-windows.ico'
-    $link.Description = 'Omnicode desktop app'
+    $link.Description = 'Facio desktop app'
     $link.Save()
     Write-Host "Created $linkPath"
     exit 0

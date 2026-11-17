@@ -182,7 +182,7 @@ export function planProjectCommand(input: {
       let projectIcon = command.projectIcon;
       if (projectIcon?.kind === "svg") {
         const svg = sanitizeProjectIconSvg(projectIcon.svg);
-        if (svg === null) return invariant("The project icon is not a drawing T3 Code can show.");
+        if (svg === null) return invariant("The project icon is not a drawing Facio can show.");
         projectIcon = { kind: "svg", svg };
       }
       if (command.scripts !== undefined) {
