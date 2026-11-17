@@ -151,6 +151,7 @@ export function ComposerAttachmentMediaRow({
   canOperateThread,
   onExpandImage,
   annotateImage,
+  onCopySnapshot,
   onFileOpen,
   onRemoveImage,
   onRemoveFile,
@@ -169,6 +170,7 @@ export function ComposerAttachmentMediaRow({
   readonly environmentId: EnvironmentId;
   readonly attachmentDraftTarget: ScopedThreadRef | DraftId;
   readonly canOperateThread: boolean;
+  readonly onCopySnapshot: (imageId: string) => Promise<void>;
   readonly onExpandImage: (preview: ExpandedImagePreview) => void;
   readonly annotateImage: (image: ComposerImageAttachment) => ExpandedImageAnnotation | undefined;
   readonly onFileOpen: (attachment: ChatFileAttachment) => void;
@@ -227,7 +229,12 @@ export function ComposerAttachmentMediaRow({
                   aria-label={`Preview ${image.name}`}
                   disabled={!ready}
                   onClick={() => {
-                    const preview = buildExpandedImagePreview(images, image.id, annotateImage);
+                    const preview = buildExpandedImagePreview(
+                      images,
+                      image.id,
+                      onCopySnapshot,
+                      annotateImage,
+                    );
                     if (!preview) return;
                     onExpandImage(preview);
                   }}
@@ -257,6 +264,7 @@ export function ComposerAttachmentMediaRow({
               {source?.kind === "snap-shot" ? (
                 <SnapShotAttachmentDetails
                   source={source}
+                  onCopySnapshot={ready ? () => onCopySnapshot(ready.id) : undefined}
                   className={cn(
                     upload?.status === "uploading" && "bottom-4",
                     upload?.status === "failed" && "bottom-8",
@@ -590,11 +598,13 @@ export function ComposerRestingImagePreviews({
   resolvedTheme,
   onExpandImage,
   annotateImage,
+  onCopySnapshot,
   onShowMore,
 }: {
   readonly images: ReadonlyArray<ComposerImageAttachment>;
   readonly allImages: ReadonlyArray<ComposerImageAttachment>;
   readonly resolvedTheme: "light" | "dark";
+  readonly onCopySnapshot: (imageId: string) => Promise<void>;
   readonly onExpandImage: (preview: ExpandedImagePreview) => void;
   readonly annotateImage: (image: ComposerImageAttachment) => ExpandedImageAnnotation | undefined;
   readonly onShowMore: () => void;
@@ -611,7 +621,12 @@ export function ComposerRestingImagePreviews({
           aria-label={`Preview ${image.name}`}
           onPointerDown={(event) => event.preventDefault()}
           onClick={() => {
-            const preview = buildExpandedImagePreview(allImages, image.id, annotateImage);
+            const preview = buildExpandedImagePreview(
+              allImages,
+              image.id,
+              onCopySnapshot,
+              annotateImage,
+            );
             if (preview) onExpandImage(preview);
           }}
         >

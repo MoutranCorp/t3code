@@ -11,3 +11,5 @@ export const BackgroundThreadContext = createContext(false);
  * so it only gives up claiming focus to the pane that has it.
  */
 export const InactiveThreadPaneContext = createContext(false);
+/** True only for a thread kept mounted out of sight under Settings or Usage. */
+export const HiddenThreadContext = createContext(false);

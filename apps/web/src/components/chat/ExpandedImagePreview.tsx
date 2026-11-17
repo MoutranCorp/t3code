@@ -27,6 +27,7 @@ export interface ExpandedImageItem {
   /** Revoke this owned object URL; other blob URLs belong to the timeline. */
   ownsSrc?: boolean;
   source?: SnapShotSource;
+  onCopySnapshot?: (() => Promise<void>) | undefined;
   autoPlay?: boolean;
   originalUrl?: string;
   srcFragment?: string;
@@ -193,6 +194,7 @@ function isComposerImage(
 export function buildExpandedImagePreview(
   images: ReadonlyArray<ChatImageAttachment | ComposerFileAttachment>,
   selectedImageId: string,
+  onCopySnapshot?: (id: string) => Promise<void>,
   annotate?: (image: ComposerImageAttachment) => ExpandedImageAnnotation | undefined,
 ): ExpandedImagePreview | null {
   const selected = images.find((image) => image.id === selectedImageId);
@@ -220,16 +222,24 @@ export function buildExpandedImagePreview(
     return null;
   }
   return {
-    images: previewableImages.map((image) =>
-      annotate && isComposerImage(image)
-        ? expandedComposerImageItem(image, annotate)
-        : {
-            src: image.previewUrl ?? null,
-            name: image.name,
-            mimeType: image.mimeType,
-            ...(image.source?.kind === "snap-shot" ? { source: image.source } : {}),
-          },
-    ),
+    images: previewableImages.map((image) => {
+      const snapshot =
+        image.source?.kind === "snap-shot"
+          ? {
+              source: image.source,
+              onCopySnapshot: onCopySnapshot ? () => onCopySnapshot(image.id) : undefined,
+            }
+          : {};
+      if (annotate && isComposerImage(image)) {
+        return { ...expandedComposerImageItem(image, annotate), ...snapshot };
+      }
+      return {
+        src: image.previewUrl ?? null,
+        name: image.name,
+        mimeType: image.mimeType,
+        ...snapshot,
+      };
+    }),
     index: selectedIndex,
   };
 }

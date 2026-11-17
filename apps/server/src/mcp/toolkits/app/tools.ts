@@ -1,6 +1,6 @@
 import { OrchestratorMcpFailure, TerminalAppStatus } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
-import { Tool, Toolkit } from "effect/ai";
+import { McpSchema, Tool, Toolkit } from "effect/ai";
 
 import * as TerminalManager from "../../../terminal/Manager.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
@@ -23,6 +23,7 @@ const AppStatusTool = Tool.make("t3_app_status", {
   .annotate(Tool.Title, "Check running app")
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false)
-  .annotate(Tool.Idempotent, true);
+  .annotate(Tool.Idempotent, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 
 export const AppToolkit = Toolkit.make(AppStatusTool);
