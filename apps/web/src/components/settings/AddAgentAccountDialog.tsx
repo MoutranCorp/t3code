@@ -23,7 +23,7 @@ import { ProviderWizardAuthenticationStep } from "./ProviderWizardAuthentication
 import { AddManagedCodexAccountDialog } from "./CodexSetupSection";
 import { ProviderSetupSection } from "./ProviderSetupSection";
 
-type AccountProvider = "claude" | "codex" | "google" | "grok";
+type AccountProvider = "claude" | "codex" | "google" | "grok" | "venice";
 
 const ACCOUNT_PROVIDERS: Record<
   Exclude<AccountProvider, "codex">,
@@ -34,6 +34,8 @@ const ACCOUNT_PROVIDERS: Record<
     /** Each instance keeps its own credentials, so several accounts can coexist. */
     readonly multipleAccounts: boolean;
     readonly config: Record<string, unknown>;
+    /** API-key providers skip sign-in; the key is stored as a sensitive instance variable. */
+    readonly apiKey?: { readonly env: string; readonly url: string };
   }
 > = {
   claude: {
@@ -59,6 +61,15 @@ const ACCOUNT_PROVIDERS: Record<
     multipleAccounts: false,
     config: {},
   },
+  // OpenCode enables its built-in Venice provider, including uncensored models, from the key.
+  venice: {
+    driver: "opencode",
+    label: "Venice",
+    title: "Add Venice (uncensored models)",
+    multipleAccounts: true,
+    config: {},
+    apiKey: { env: "VENICE_API_KEY", url: "https://venice.ai/settings/api" },
+  },
 };
 
 export function AddAgentAccountDialog({
@@ -72,6 +83,7 @@ export function AddAgentAccountDialog({
 }) {
   const [provider, setProvider] = useState<AccountProvider | null>(null);
   const [name, setName] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [instanceId, setInstanceId] = useState<ProviderInstanceId | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +95,7 @@ export function AddAgentAccountDialog({
       !selected ||
       pending ||
       !name.trim() ||
+      (selected.apiKey && !apiKey.trim()) ||
       !readEnvironmentScope(environmentId, AuthProvidersManageScope)
     )
       return;
@@ -104,6 +117,11 @@ export function AddAgentAccountDialog({
         driver: ProviderDriverKind.make(selected.driver),
         enabled: true,
         displayName: `${selected.label} · ${name.trim()}`,
+        ...(selected.apiKey
+          ? {
+              environment: [{ name: selected.apiKey.env, value: apiKey.trim(), sensitive: true }],
+            }
+          : {}),
         config: {
           ...(existing?.[1].config as Record<string, unknown> | undefined),
           ...selected.config,
@@ -111,8 +129,10 @@ export function AddAgentAccountDialog({
       },
     });
     setPending(false);
-    if (result._tag === "Success") setInstanceId(id);
-    else {
+    if (result._tag === "Success") {
+      if (selected.apiKey) onClose();
+      else setInstanceId(id);
+    } else {
       const cause = squashAtomCommandFailure(result);
       setError(cause instanceof Error ? cause.message : "Could not add the account. Try again.");
     }
@@ -169,6 +189,9 @@ export function AddAgentAccountDialog({
                   <Button variant="outline" onClick={() => setProvider("grok")}>
                     Grok
                   </Button>
+                  <Button variant="outline" onClick={() => setProvider("venice")}>
+                    Venice (uncensored)
+                  </Button>
                 </div>
               ) : (
                 <form
@@ -192,6 +215,35 @@ export function AddAgentAccountDialog({
                       />
                     }
                   />
+                  {selected?.apiKey ? (
+                    <SettingsRow
+                      title="API key"
+                      description={
+                        <>
+                          Create one at{" "}
+                          <a
+                            className="underline"
+                            href={selected.apiKey.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {selected.apiKey.url.replace("https://", "")}
+                          </a>
+                          . Stored separately on the host.
+                        </>
+                      }
+                      control={
+                        <Input
+                          type="password"
+                          aria-label="API key"
+                          value={apiKey}
+                          onChange={(event) => setApiKey(event.target.value)}
+                          disabled={pending}
+                          autoComplete="off"
+                        />
+                      }
+                    />
+                  ) : null}
                   {error ? (
                     <p role="alert" className="text-sm text-destructive">
                       {error}
@@ -209,8 +261,18 @@ export function AddAgentAccountDialog({
                 {provider ? "Back" : "Cancel"}
               </Button>
               {provider ? (
-                <Button form="add-agent-account" type="submit" disabled={pending || !name.trim()}>
-                  {pending ? "Preparing account…" : "Continue to sign in"}
+                <Button
+                  form="add-agent-account"
+                  type="submit"
+                  disabled={
+                    pending || !name.trim() || (selected?.apiKey !== undefined && !apiKey.trim())
+                  }
+                >
+                  {pending
+                    ? "Preparing account…"
+                    : selected?.apiKey
+                      ? "Add account"
+                      : "Continue to sign in"}
                 </Button>
               ) : null}
             </WizardFooter>

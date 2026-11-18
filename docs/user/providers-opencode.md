@@ -20,6 +20,14 @@ OpenCode 2 converts the shared OpenCode database to its own format the first tim
 runs. Don't run OpenCode 1.x and 2.x side by side on the same machine. Threads you
 started on 1.x continue on 2.x.
 
+## Venice (uncensored models)
+
+Choose **Add account → Venice (uncensored)** in the chat's model picker and paste a
+[Venice API key](https://venice.ai/settings/api). This adds an OpenCode instance with
+`VENICE_API_KEY` stored as a secret, and OpenCode's built-in Venice provider lists its models,
+including uncensored ones such as `venice/deepseek-v4-1-flash-uncensored`. Add the account
+again with another key to keep several Venice accounts.
+
 ## Compaction
 
 OpenCode compacts long conversations itself, and T3 Code has no setting for it. On
