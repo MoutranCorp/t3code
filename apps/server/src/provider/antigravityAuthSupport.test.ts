@@ -104,6 +104,7 @@ describe("Antigravity process environment", () => {
         BROWSER: profile.browserCommand,
         PYTHONUNBUFFERED: "1",
         ELECTRON_RUN_AS_NODE: "1",
+        GIT_CEILING_DIRECTORIES: profile.acpDirectory,
         TMPDIR: profile.tempDirectory,
       },
     });
@@ -190,6 +191,9 @@ describe("Antigravity process environment", () => {
     });
     expect(perRun.env?.TEMP).toBe(`${windowsProfile.tempDirectory}\\run-1`);
     expect(perRun.env?.TMP).toBe(`${windowsProfile.tempDirectory}\\run-1`);
+    // Git must not discover a checkout that contains T3 home from the unpacked runtime.
+    expect(shared.env?.GIT_CEILING_DIRECTORIES).toBe(windowsProfile.acpDirectory);
+    expect(perRun.env?.GIT_CEILING_DIRECTORIES).toBe(windowsProfile.tempDirectory);
   });
 
   it.effect("keeps accounts separate even when instance IDs differ only by case", () =>

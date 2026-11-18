@@ -1,5 +1,6 @@
 // @effect-diagnostics-next-line nodeBuiltinImport:off - Effect's symlink has no type argument, and Windows needs a junction to link without elevation.
 import * as NodeFSP from "node:fs/promises";
+import * as NodePath from "node:path";
 
 import type { AntigravityAuthMethod, ProviderInstanceId } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -213,6 +214,13 @@ function antigravityEnvironment(
         : {};
   // Each launch unpacks about 1 GB; use T3-owned temp so the driver can reclaim files after force-kill.
   const tempDirectory = runtimeTempDirectory ?? profile.tempDirectory;
+  // The bundled `websockets` runs `git describe` from the unpacked temp root. When T3 home sits in
+  // a git checkout it finds that repo, cannot parse its tag, and the agent exits on startup. Git
+  // always checks its starting folder, so the ceiling must be the temp root's parent.
+  const pathApi = profile.platform === "win32" ? NodePath.win32 : NodePath.posix;
+  const gitCeiling = [pathApi.dirname(tempDirectory), baseEnv.GIT_CEILING_DIRECTORIES]
+    .filter((entry) => entry !== undefined && entry !== "")
+    .join(profile.platform === "win32" ? ";" : ":");
   return {
     ...environment,
     ...credential,
@@ -226,6 +234,7 @@ function antigravityEnvironment(
     BROWSER: profile.browserCommand,
     PYTHONUNBUFFERED: "1",
     ELECTRON_RUN_AS_NODE: "1",
+    GIT_CEILING_DIRECTORIES: gitCeiling,
     ...(profile.platform === "win32"
       ? { TEMP: tempDirectory, TMP: tempDirectory }
       : { TMPDIR: tempDirectory }),
