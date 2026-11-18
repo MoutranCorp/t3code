@@ -100,6 +100,7 @@ describe("Antigravity process environment", () => {
         CUSTOM_SETTING: "keep-this",
         GEMINI_HOME: profile.geminiHome,
         AGY_ACP_FORCE_FILE_STORAGE: "1",
+        WSL_INTEROP: "t3-antigravity-profile-storage",
         ANTIGRAVITY_HARNESS_PATH: "/release/harness",
         BROWSER: profile.browserCommand,
         PYTHONUNBUFFERED: "1",
@@ -119,6 +120,8 @@ describe("Antigravity process environment", () => {
     });
 
     expect(spawn.command).toBe("/usr/bin/agy");
+    // agy keeps one shared keyring login unless it stores tokens in this profile.
+    expect(spawn.env?.WSL_INTEROP).toBe("t3-antigravity-profile-storage");
     expect(spawn.args).toEqual([
       "acp",
       "--gemini-dir",

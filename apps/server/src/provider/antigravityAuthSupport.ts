@@ -231,6 +231,11 @@ function antigravityEnvironment(
       : {}),
     GEMINI_HOME: profile.geminiHome,
     AGY_ACP_FORCE_FILE_STORAGE: "1",
+    // The agy CLI ignores the variable above and keeps its Google login in one OS keyring entry
+    // (`gemini:antigravity`), so every profile would share whichever account signed in last. Its
+    // keyring detector falls back to a token file under --app-data-dir when it sees WSL, and agy
+    // reads WSL_INTEROP nowhere else; sign-in still opens the browser with a loopback callback.
+    WSL_INTEROP: baseEnv.WSL_INTEROP ?? "t3-antigravity-profile-storage",
     BROWSER: profile.browserCommand,
     PYTHONUNBUFFERED: "1",
     ELECTRON_RUN_AS_NODE: "1",
