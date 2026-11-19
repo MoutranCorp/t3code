@@ -164,14 +164,39 @@ Unattended-Upgrade::Automatic-Reboot "false";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 EOF
 
-# 5. Optional NVIDIA headless driver for RTX GPUs
+# 5. NVIDIA driver for RTX GPUs (full X11/Vulkan+CUDA driver on desktop, headless --gpgpu on server)
 if [[ "${FACIO_SKIP_NVIDIA:-0}" != "1" ]] && lspci | grep -qi nvidia; then
   if ! command -v nvidia-smi >/dev/null 2>&1; then
-    log "NVIDIA GPU detected — installing headless NVIDIA server driver..."
     sudo apt-get install -y ubuntu-drivers-common
-    sudo ubuntu-drivers install --gpgpu || sudo apt-get install -y nvidia-driver-550-server
+    if command -v Xorg >/dev/null 2>&1; then
+      log "NVIDIA GPU + X11 desktop detected — installing full NVIDIA driver (Vulkan + CUDA + X11)..."
+      sudo ubuntu-drivers install || sudo apt-get install -y nvidia-driver-550
+    else
+      log "NVIDIA GPU (headless) detected — installing headless NVIDIA server driver..."
+      sudo ubuntu-drivers install --gpgpu || sudo apt-get install -y nvidia-driver-550-server
+    fi
   else
     log "NVIDIA driver already installed ($(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | head -n 1))."
+  fi
+fi
+
+# 5b. On Xubuntu Minimal / desktop installs: install Google Chrome (native .deb, no Snap) and set 24/7 XFCE power defaults
+if command -v Xorg >/dev/null 2>&1; then
+  if ! command -v google-chrome-stable >/dev/null 2>&1 && [[ "$(dpkg --print-architecture)" == "amd64" ]]; then
+    log "Installing Google Chrome (.deb) for fast non-Snap browsing..."
+    curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor --yes -o /etc/apt/keyrings/google-chrome.gpg
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list >/dev/null
+    sudo apt-get update -y
+    sudo apt-get install -y google-chrome-stable || true
+  fi
+  if command -v xfconf-query >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+    log "Configuring XFCE Power Manager (blank display after 10 min, never sleep/suspend)..."
+    xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/inactivity-on-ac -n -t uint -s 0 2>/dev/null || true
+    xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/inactivity-on-battery -n -t uint -s 0 2>/dev/null || true
+    xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/lid-action-on-ac -n -t uint -s 0 2>/dev/null || true
+    xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/lid-action-on-battery -n -t uint -s 0 2>/dev/null || true
+    xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-on-ac-off -n -t uint -s 10 2>/dev/null || true
+    xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-on-ac-sleep -n -t uint -s 5 2>/dev/null || true
   fi
 fi
 
@@ -214,6 +239,9 @@ if [[ "$(pnpm --version 2>/dev/null || true)" != "$PNPM_VERSION" ]]; then
   log "Installing pnpm@${PNPM_VERSION}..."
   "$NODE_DIR/bin/npm" install -g "pnpm@${PNPM_VERSION}" --no-audit --no-fund
 fi
+
+log "Pre-installing Claude Code and Codex CLIs globally..."
+"$NODE_DIR/bin/npm" install -g @anthropic-ai/claude-code @openai/codex --no-audit --no-fund || true
 
 if ! command -v rustup >/dev/null 2>&1; then
   log "Installing Rust ${RUST_TOOLCHAIN} via rustup..."
