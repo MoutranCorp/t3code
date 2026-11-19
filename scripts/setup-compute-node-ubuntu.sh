@@ -7,12 +7,13 @@
 #   bash scripts/setup-compute-node-ubuntu.sh
 #
 # Optional environment overrides:
-#   FACIO_REPO_URL   Git repo to clone (default: https://github.com/MoutranCorp/t3code.git)
-#   FACIO_BRANCH     Branch to track   (default: fork/facio)
-#   FACIO_DIR        Checkout path     (default: $HOME/facio)
-#   FACIO_PORT       HTTP/WS port      (default: 3773)
-#   FACIO_SKIP_NVIDIA=1  Skip NVIDIA headless driver installation
-#   FACIO_SKIP_UFW=1     Skip UFW firewall rules
+#   FACIO_REPO_URL            Git repo to clone (default: https://github.com/MoutranCorp/t3code.git)
+#   FACIO_BRANCH              Branch to track   (default: fork/facio)
+#   FACIO_DIR                 Checkout path     (default: $HOME/facio)
+#   FACIO_PORT                HTTP/WS port      (default: 3773)
+#   FACIO_SKIP_NVIDIA=1       Skip NVIDIA headless driver installation
+#   FACIO_SKIP_UFW=1          Skip UFW firewall rules
+#   FACIO_SKIP_GAME_TOOLS=1   Skip Godot 4.7 / Rust 1.94.1 / anim2d / CUDA audio venvs
 set -euo pipefail
 
 if [[ "${EUID}" -eq 0 ]]; then
@@ -28,6 +29,8 @@ T3_HOME="${T3CODE_HOME:-$HOME/.t3}"
 NODE_VERSION="26.13.1"
 PNPM_VERSION="12.14.0"
 RUST_TOOLCHAIN="1.95.0"
+GAME_RUST_TOOLCHAIN="1.94.1"
+GODOT_VERSION="4.7-stable"
 TOOL_ROOT="$HOME/.local/share/facio-tooling"
 BIN_DIR="$HOME/.local/bin"
 
@@ -89,11 +92,19 @@ sudo apt-get install -y \
   ca-certificates \
   curl \
   fd-find \
+  ffmpeg \
   git \
   gnupg \
   htop \
   jq \
+  libasound2t64 \
+  libgl1 \
   libssl-dev \
+  libvulkan1 \
+  libxcursor1 \
+  libxi6 \
+  libxinerama1 \
+  libxrandr2 \
   lsof \
   openssh-server \
   pciutils \
@@ -102,13 +113,16 @@ sudo apt-get install -y \
   python3-pip \
   python3-venv \
   ripgrep \
+  rsync \
   systemd-oomd \
   systemd-zram-generator \
   tmux \
   ufw \
   unattended-upgrades \
   unzip \
-  wget
+  vulkan-tools \
+  wget \
+  xvfb
 
 # GitHub CLI (gh)
 if ! command -v gh >/dev/null 2>&1; then
@@ -214,6 +228,49 @@ if ! command -v uv >/dev/null 2>&1; then
   log "Installing uv (for Python/ACP tools)..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
+export PATH="$HOME/.local/bin:$PATH"
+
+# 7b. Game compute-node toolchains (Godot 4.7-stable, Rust 1.94.1, anim2d & CUDA audio venvs)
+if [[ "${FACIO_SKIP_GAME_TOOLS:-0}" != "1" ]]; then
+  log "Installing game Rust toolchain (${GAME_RUST_TOOLCHAIN} with rustfmt & clippy)..."
+  rustup toolchain install "$GAME_RUST_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
+
+  GODOT_DIR="$TOOL_ROOT/godot-${GODOT_VERSION}"
+  GODOT_BIN="$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.${ARCH}"
+  if [[ "$ARCH" == "x86_64" && ! -x "$GODOT_BIN" ]]; then
+    log "Installing Godot ${GODOT_VERSION} (Linux x86_64)..."
+    mkdir -p "$GODOT_DIR"
+    curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip" -o /tmp/godot.zip
+    unzip -o /tmp/godot.zip -d "$GODOT_DIR" >/dev/null
+    rm -f /tmp/godot.zip
+    chmod +x "$GODOT_BIN"
+  fi
+  if [[ -x "$GODOT_BIN" ]]; then
+    ln -sf "$GODOT_BIN" "$BIN_DIR/godot"
+    ln -sf "$GODOT_BIN" "$BIN_DIR/godot_console"
+  fi
+
+  log "Provisioning Python 3.11 virtual environments via uv (~/.venvs/anim2d and ~/.venvs/audio-cuda)..."
+  mkdir -p "$HOME/.venvs"
+  if [[ ! -x "$HOME/.venvs/anim2d/bin/python" ]]; then
+    uv venv --python 3.11 "$HOME/.venvs/anim2d"
+  fi
+  uv pip install --python "$HOME/.venvs/anim2d/bin/python" \
+    numpy opencv-python-headless pillow scipy psutil potracer
+
+  if [[ ! -x "$HOME/.venvs/audio-cuda/bin/python" ]]; then
+    uv venv --python 3.11 "$HOME/.venvs/audio-cuda"
+  fi
+  if lspci | grep -qi nvidia; then
+    uv pip install --python "$HOME/.venvs/audio-cuda/bin/python" \
+      --index-url https://download.pytorch.org/whl/cu124 \
+      torch torchaudio
+  else
+    uv pip install --python "$HOME/.venvs/audio-cuda/bin/python" torch torchaudio
+  fi
+  uv pip install --python "$HOME/.venvs/audio-cuda/bin/python" \
+    demucs faster-whisper ctranslate2 librosa soundfile pyloudnorm numpy scipy
+fi
 
 # Ensure login and interactive shells see Node, Cargo, and ~/.local/bin (needed for non-interactive SSH & agents)
 PROFILE_MARKER="# facio-compute-node-path"
@@ -226,6 +283,9 @@ $PROFILE_MARKER
 export PATH="$NODE_DIR/bin:\$HOME/.cargo/bin:\$HOME/.local/bin:\$PATH"
 export T3CODE_HOME="$T3_HOME"
 export T3CODE_TELEMETRY_ENABLED=0
+export CARGO_BUILD_JOBS=4
+export PTP_ROOT="\$HOME/projects/project-tag-platfighter"
+export PTP_GAMEDATA="\$HOME/projects/project-tag-platfighter-gamedata"
 EOF
   fi
 done
@@ -288,6 +348,9 @@ cat >"$T3_HOME/service.env" <<EOF
 T3CODE_LAN=true
 T3CODE_PORT=${FACIO_PORT}
 T3CODE_TELEMETRY_ENABLED=0
+CARGO_BUILD_JOBS=4
+PTP_ROOT=${HOME}/projects/project-tag-platfighter
+PTP_GAMEDATA=${HOME}/projects/project-tag-platfighter-gamedata
 EOF
 chmod 600 "$T3_HOME/service.env"
 
