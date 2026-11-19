@@ -24,7 +24,7 @@ import {
   type ScopedThreadRef,
 } from "@t3tools/contracts";
 import { detectRunTargets } from "@t3tools/shared/projectRunDetection";
-import { projectScriptMenuLabel } from "@t3tools/shared/projectScripts";
+import { projectScriptMenuLabel } from "@t3tools/shared/projectScriptsCopy";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import { useNavigate } from "@tanstack/react-router";
 import { AsyncResult, Atom } from "effect/reactivity";

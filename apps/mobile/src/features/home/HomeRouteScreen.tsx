@@ -8,6 +8,7 @@ import { homeDockProjects } from "@t3tools/client-runtime/home-projects";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { useMemo, useState } from "react";
 import { Platform } from "react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import { pickableProjectGroups } from "@t3tools/client-runtime/state/project-grouping";
@@ -49,6 +50,8 @@ import { WorkspaceListHeader } from "../layout/workspace/WorkspaceListHeader";
 import { buildHomeListFilterMenuItems, homeListFilterEnvironments } from "./home-list-filter-menu";
 
 export function HomeRouteScreen() {
+  const gt = useGT();
+  const m = useMessages();
   const nativePrimaryColumn = use(NativePrimaryColumnContext);
   // Split view keeps the list: it is the sidebar beside the open thread.
   const sidebarSurface = usePaneRole() === "sidebar" && nativePrimaryColumn !== null;
@@ -139,12 +142,15 @@ export function HomeRouteScreen() {
   const selectedEnvironmentId = listOptions.selectedEnvironmentId;
   const projectScopes = useMemo(
     () =>
-      buildHomeProjectScopes({
-        projects,
-        environmentId: selectedEnvironmentId,
-        projectGroupingMode: listOptions.projectGroupingMode,
-      }),
-    [listOptions.projectGroupingMode, projects, selectedEnvironmentId],
+      buildHomeProjectScopes(
+        {
+          projects,
+          environmentId: selectedEnvironmentId,
+          projectGroupingMode: listOptions.projectGroupingMode,
+        },
+        m,
+      ),
+    [listOptions.projectGroupingMode, projects, selectedEnvironmentId, m],
   );
   const projectFilterOptions = useMemo(
     () =>
@@ -225,33 +231,36 @@ export function HomeRouteScreen() {
     <AndroidHomeFabLayout onStartNewTask={startNewTask}>
       <>
         <WorkspaceListHeader
-          accessibilityLabel="Facio, Threads"
+          accessibilityLabel={gt("Facio, Threads")}
           onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
           search={{
             value: searchQuery,
             onChangeText: setSearchQuery,
-            placeholder: "Search",
-            accessibilityLabel: "Search threads",
+            placeholder: gt("Search", { $context: "search field placeholder" }),
+            accessibilityLabel: gt("Search threads"),
           }}
           filter={{
             customized: selectedEnvironmentId !== null || selectedProjectKey !== null,
-            items: buildHomeListFilterMenuItems({
-              environments,
-              projects: projectFilterOptions,
-              selectedEnvironmentId,
-              selectedProjectKey,
-              onEnvironmentChange: setSelectedEnvironmentId,
-              onProjectChange: gridAvailable ? handleProjectFilterChange : setSelectedProjectKey,
-              ...(!gridAvailable
-                ? {}
-                : {
-                    view: {
-                      showingProjects: showProjects,
-                      onShowProjects: () => setView("projects"),
-                      onShowThreads: handleShowThreads,
-                    },
-                  }),
-            }),
+            items: buildHomeListFilterMenuItems(
+              {
+                environments,
+                projects: projectFilterOptions,
+                selectedEnvironmentId,
+                selectedProjectKey,
+                onEnvironmentChange: setSelectedEnvironmentId,
+                onProjectChange: gridAvailable ? handleProjectFilterChange : setSelectedProjectKey,
+                ...(!gridAvailable
+                  ? {}
+                  : {
+                      view: {
+                        showingProjects: showProjects,
+                        onShowProjects: () => setView("projects"),
+                        onShowThreads: handleShowThreads,
+                      },
+                    }),
+              },
+              m,
+            ),
           }}
         />
 

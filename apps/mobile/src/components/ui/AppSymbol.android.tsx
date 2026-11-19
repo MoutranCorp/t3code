@@ -151,6 +151,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "git.pull-request.closed": IconGitPullRequestClosed,
   "git.pull-request.draft": IconGitPullRequestDraft,
   "git.commit": IconGitCommit,
+  "git.issue": IconCircleDot,
   "arrow.branch": IconGitBranch,
   "arrow.left": IconArrowLeft,
   "arrow.right": IconArrowRight,
@@ -307,6 +308,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
     | "git.pull-request.closed"
     | "git.pull-request.draft"
     | "git.commit"
+    | "git.issue"
     | "file.diff"
     | "robot",
     Icon
@@ -318,6 +320,7 @@ const SF_ICON_LOOKUP: Partial<
     | "git.pull-request.closed"
     | "git.pull-request.draft"
     | "git.commit"
+    | "git.issue"
     | "file.diff"
     | "robot",
     Icon
