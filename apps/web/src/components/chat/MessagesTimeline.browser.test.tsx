@@ -2156,6 +2156,45 @@ describe("ChangedFilesCard", () => {
       });
     },
   );
+
+  it("opens images in the file viewer and text files in the diff", async () => {
+    const openedDiffs: Array<string | undefined> = [];
+    const openedFiles: string[] = [];
+    let viewerAvailable = true;
+    await using screen = await render(
+      <ChangedFilesCard
+        runId={RunId.make("run-1")}
+        files={["mockups/a.png", "notes.md"].map((path) => ({
+          path,
+          kind: "added",
+          additions: path.endsWith(".png") ? 0 : 3,
+          deletions: 0,
+        }))}
+        totals={{ count: 2, additions: 3, deletions: 0 }}
+        allDirectoriesExpanded
+        resolvedTheme="light"
+        onToggleAllDirectories={() => {}}
+        onOpenTurnDiff={(_runId, filePath) => openedDiffs.push(filePath)}
+        onOpenFile={(filePath) => {
+          if (viewerAvailable) openedFiles.push(filePath);
+          return viewerAvailable;
+        }}
+      />,
+    );
+    const row = (path: string) =>
+      screen.container.querySelector<HTMLButtonElement>(
+        `[data-changed-file-row="${path}"] button`,
+      )!;
+
+    row("mockups/a.png").click();
+    row("notes.md").click();
+    expect(openedFiles).toEqual(["mockups/a.png"]);
+    expect(openedDiffs).toEqual(["notes.md"]);
+
+    viewerAvailable = false;
+    row("mockups/a.png").click();
+    expect(openedDiffs).toEqual(["notes.md", "mockups/a.png"]);
+  });
 });
 
 it("keeps concurrent approvals actionable outside collapsed work and restores settled rows", async () => {

@@ -7,22 +7,28 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as PtyAdapter from "@t3tools/shared/PtyAdapter";
 import { makeClaudeAccountAuth } from "./ClaudeAccountAuth.ts";
 const decodeSettings = Schema.decodeSync(ClaudeSettings);
 
-const makeHarness = Effect.fn("ClaudeAccountAuth.testHarness")(function* (verified = true) {
+const makeHarness = Effect.fn("ClaudeAccountAuth.testHarness")(function* (
+  verified = true,
+  platform: NodeJS.Platform = "linux",
+  binaryPath = "claude",
+) {
   let spawned: PtyAdapter.PtySpawnInput | undefined;
   let exit: ((event: PtyAdapter.PtyExitEvent) => void) | undefined;
   let killed = false;
   const controller = yield* makeClaudeAccountAuth({
     instanceId: ProviderInstanceId.make("claude_personal"),
-    config: decodeSettings({ binaryPath: "claude", homePath: "/isolated-claude" }),
+    config: decodeSettings({ binaryPath, homePath: "/isolated-claude" }),
     environment: { PATH: "/tools" },
     cwd: "/workspace",
     verify: Effect.succeed(verified),
     onChanged: Effect.void,
   }).pipe(
+    Effect.provideService(HostProcess.Platform, platform),
     Effect.provideService(PtyAdapter.PtyAdapter, {
       spawn: (input) =>
         Effect.sync(() => {
@@ -70,6 +76,21 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Claude account s
       h.exit(0);
       yield* h.state((value) => value.phase === "succeeded");
       expect(h.killed()).toBe(true);
+    }),
+  );
+  it.effect("launches Windows command shims through cmd.exe", () =>
+    Effect.gen(function* () {
+      const h = yield* makeHarness(true, "win32", String.raw`C:\tools\claude.cmd`);
+      yield* h.controller.start("owner");
+      yield* h.state((value) => value.interaction?.type === "terminal");
+      expect(h.spawned()?.shell).toBe("cmd.exe");
+      expect(h.spawned()?.args).toEqual([
+        "/d",
+        "/c",
+        String.raw`C:\tools\claude.cmd`,
+        "auth",
+        "login",
+      ]);
     }),
   );
   it.effect("does not report success when the account cannot be verified", () =>

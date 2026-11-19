@@ -29,6 +29,7 @@ import {
 } from "@t3tools/provider-core/server/driver";
 import { withInstanceIdentity } from "@t3tools/provider-core/server/instanceIdentity";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
+import { makeTerminalLoginAuth } from "@t3tools/provider-core/server/terminalLoginAuth";
 import { discoverGrokSkills } from "./skills.ts";
 import {
   homebrewOwnershipFromCommandPath,
@@ -145,13 +146,25 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv, Path.Path> 
       driverKind: DRIVER_KIND,
       instanceId,
     });
-    const stampIdentity = withInstanceIdentity({
+    const applyIdentity = withInstanceIdentity({
       instanceId,
       driverKind: DRIVER_KIND,
       displayName,
       accentColor,
       continuationGroupKey: continuationIdentity.continuationKey,
     });
+    // `auth` below signs in through `grok login`, so every Grok instance can authenticate in-app.
+    const stampIdentity: typeof applyIdentity = (snapshot) => {
+      const identified = applyIdentity(snapshot);
+      return {
+        ...identified,
+        setup: {
+          ...identified.setup,
+          canInstall: identified.setup?.canInstall ?? false,
+          canAuthenticate: true,
+        },
+      };
+    };
     const effectiveConfig = { ...config, enabled } satisfies GrokSettings;
     const resolveMaintenance = yield* makeCachedProviderMaintenanceResolution(
       resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
@@ -260,6 +273,22 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv, Path.Path> 
             ),
           ]).pipe(Effect.map(([machineSnapshot, skills]) => ({ ...machineSnapshot, skills })));
 
+    const auth = yield* makeTerminalLoginAuth({
+      instanceId,
+      label: "Grok",
+      binaryPath: effectiveConfig.binaryPath,
+      loginArgs: ["login"],
+      logoutArgs: ["logout"],
+      description: "Sign in with your X or xAI account in your browser.",
+      credentialKey: `grok:${processEnv.GROK_HOME ?? "default"}`,
+      environment: processEnv,
+      cwd,
+      verify: snapshot.refresh.pipe(
+        Effect.map((provider) => provider.auth.status === "authenticated"),
+      ),
+      onChanged: snapshot.refresh.pipe(Effect.asVoid),
+    }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
+
     return {
       instanceId,
       driverKind: DRIVER_KIND,
@@ -268,6 +297,7 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv, Path.Path> 
       accentColor,
       enabled,
       snapshot,
+      auth,
       snapshotForCwd,
       orchestrationAdapter,
       textGeneration,

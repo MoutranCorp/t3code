@@ -15,6 +15,8 @@ import { McpAppFrame } from "./McpAppFrame";
 import { checkpointFileTotals } from "@t3tools/client-runtime/state/thread-checkpoints";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { useFileContextMenuHandler } from "../../fileContextMenu";
+import { resolveDiffPathForWorkspace } from "../../diffFileActions";
+import { useRightPanelStore } from "../../rightPanelStore";
 import {
   readResponseSubagents,
   useAssistantMessageText,
@@ -465,15 +467,27 @@ function AssistantChangedFilesSectionInner({
       : null,
   );
   const onFileContextMenu = useFileContextMenuHandler(ctx.activeThreadEnvironmentId);
-  const repositoryRoot = useAtomValue(
-    ctx.workspaceRoot
-      ? vcsEnvironment.status({
-          environmentId: ctx.activeThreadEnvironmentId,
-          input: { cwd: ctx.workspaceRoot },
-        })
-      : NO_VCS_STATUS,
-    (status) => AsyncResult.getOrElse(status, () => null)?.workingTree.rootPath,
-  );
+  const repositoryRoot =
+    useAtomValue(
+      ctx.workspaceRoot
+        ? vcsEnvironment.status({
+            environmentId: ctx.activeThreadEnvironmentId,
+            input: { cwd: ctx.workspaceRoot },
+          })
+        : NO_VCS_STATUS,
+      (status) => AsyncResult.getOrElse(status, () => null)?.workingTree.rootPath,
+    ) ?? (thread?.worktreePath == null ? activeProject?.repositoryIdentity?.rootPath : undefined);
+  const onOpenFile = (filePath: string): boolean => {
+    if (!ctx.threadRef) return false;
+    const workspaceFilePath = resolveDiffPathForWorkspace({
+      filePath,
+      workspaceRoot: ctx.workspaceRoot,
+      repositoryRoot,
+    });
+    if (!workspaceFilePath) return false;
+    useRightPanelStore.getState().openFile(ctx.threadRef, workspaceFilePath);
+    return true;
+  };
 
   return (
     <ChangedFilesCard
@@ -486,17 +500,14 @@ function AssistantChangedFilesSectionInner({
         setExpanded(routeThreadKey, turnSummary.runId, !allDirectoriesExpanded)
       }
       onOpenTurnDiff={onOpenTurnDiff}
+      onOpenFile={onOpenFile}
       onFileContextMenu={(filePath, event) =>
         onFileContextMenu(
           {
             environmentId: ctx.activeThreadEnvironmentId,
             filePath,
             workspaceRoot: ctx.workspaceRoot,
-            repositoryRoot:
-              repositoryRoot ??
-              (thread?.worktreePath == null
-                ? activeProject?.repositoryIdentity?.rootPath
-                : undefined),
+            repositoryRoot,
           },
           event,
         )

@@ -12,6 +12,10 @@ your project, and enable Antigravity. Install its runtime there, then choose
 account access and load models before starting a thread. Once the runtime is installed,
 you can also sign in from **Settings > Providers** in the mobile app.
 
+You can also choose **Add account → Google / Gemini** in the chat's model picker. It
+installs the runtime if needed and signs in. Each account added this way keeps its own
+Google sign-in, so you can switch between accounts from the model picker.
+
 Installation continues if you leave settings or reconnect. Setup requires
 permission to operate the environment; update an older server if it does not offer
 Antigravity setup.

@@ -31,6 +31,13 @@ export const makeClaudeAccountAuth = Effect.fn("makeClaudeAccountAuth")(function
   const loginCommand = yield* resolveSpawnCommand(options.config.binaryPath, ["auth", "login"], {
     env: environment,
   });
+  // node-pty cannot apply ResolvedSpawnCommand.shell, so batch shims need explicit cmd.exe dispatch.
+  const loginPtyCommand = loginCommand.shell
+    ? {
+        shell: environment.ComSpec ?? environment.COMSPEC ?? "cmd.exe",
+        args: ["/d", "/c", options.config.binaryPath, "auth", "login"],
+      }
+    : { shell: loginCommand.command, args: [...loginCommand.args] };
   const logoutCommand = yield* resolveSpawnCommand(options.config.binaryPath, ["auth", "logout"], {
     env: environment,
   });
@@ -56,8 +63,8 @@ export const makeClaudeAccountAuth = Effect.fn("makeClaudeAccountAuth")(function
       const output = yield* Queue.sliding<string>(64);
       const terminal = yield* pty.value
         .spawn({
-          shell: loginCommand.command,
-          args: [...loginCommand.args],
+          shell: loginPtyCommand.shell,
+          args: loginPtyCommand.args,
           cwd: options.cwd,
           env: environment,
           cols: 80,

@@ -100,10 +100,12 @@ describe("Antigravity process environment", () => {
         CUSTOM_SETTING: "keep-this",
         GEMINI_HOME: profile.geminiHome,
         AGY_ACP_FORCE_FILE_STORAGE: "1",
+        WSL_INTEROP: "t3-antigravity-profile-storage",
         ANTIGRAVITY_HARNESS_PATH: "/release/harness",
         BROWSER: profile.browserCommand,
         PYTHONUNBUFFERED: "1",
         ELECTRON_RUN_AS_NODE: "1",
+        GIT_CEILING_DIRECTORIES: profile.acpDirectory,
         TMPDIR: profile.tempDirectory,
       },
     });
@@ -118,6 +120,8 @@ describe("Antigravity process environment", () => {
     });
 
     expect(spawn.command).toBe("/usr/bin/agy");
+    // agy keeps one shared keyring login unless it stores tokens in this profile.
+    expect(spawn.env?.WSL_INTEROP).toBe("t3-antigravity-profile-storage");
     expect(spawn.args).toEqual([
       "acp",
       "--gemini-dir",
@@ -196,6 +200,9 @@ describe("Antigravity process environment", () => {
     });
     expect(perRun.env?.TEMP).toBe(`${windowsProfile.tempDirectory}\\run-1`);
     expect(perRun.env?.TMP).toBe(`${windowsProfile.tempDirectory}\\run-1`);
+    // Git must not discover a checkout that contains T3 home from the unpacked runtime.
+    expect(shared.env?.GIT_CEILING_DIRECTORIES).toBe(windowsProfile.acpDirectory);
+    expect(perRun.env?.GIT_CEILING_DIRECTORIES).toBe(windowsProfile.tempDirectory);
   });
 
   it.effect("keeps accounts separate even when instance IDs differ only by case", () =>

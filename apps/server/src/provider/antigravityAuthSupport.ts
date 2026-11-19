@@ -213,6 +213,14 @@ function antigravityEnvironment(
         : {};
   // Each launch unpacks about 1 GB; use T3-owned temp so the driver can reclaim files after force-kill.
   const tempDirectory = runtimeTempDirectory ?? profile.tempDirectory;
+  // The bundled `websockets` runs `git describe` from the unpacked temp root. When T3 home sits in
+  // a git checkout it finds that repo, cannot parse its tag, and the agent exits on startup. Git
+  // always checks its starting folder, so the ceiling must be the temp root's parent.
+  const lastSegment = profile.platform === "win32" ? /[\\/]+[^\\/]+[\\/]*$/u : /\/+[^/]+\/*$/u;
+  const tempParent = tempDirectory.replace(lastSegment, "");
+  const gitCeiling = [tempParent, baseEnv.GIT_CEILING_DIRECTORIES]
+    .filter((entry) => entry !== undefined && entry !== "")
+    .join(profile.platform === "win32" ? ";" : ":");
   return {
     ...environment,
     ...credential,
@@ -223,9 +231,15 @@ function antigravityEnvironment(
       : {}),
     GEMINI_HOME: profile.geminiHome,
     AGY_ACP_FORCE_FILE_STORAGE: "1",
+    // The agy CLI ignores the variable above and keeps its Google login in one OS keyring entry
+    // (`gemini:antigravity`), so every profile would share whichever account signed in last. Its
+    // keyring detector falls back to a token file under --app-data-dir when it sees WSL, and agy
+    // reads WSL_INTEROP nowhere else; sign-in still opens the browser with a loopback callback.
+    WSL_INTEROP: baseEnv.WSL_INTEROP ?? "t3-antigravity-profile-storage",
     BROWSER: profile.browserCommand,
     PYTHONUNBUFFERED: "1",
     ELECTRON_RUN_AS_NODE: "1",
+    GIT_CEILING_DIRECTORIES: gitCeiling,
     ...(profile.platform === "win32"
       ? { TEMP: tempDirectory, TMP: tempDirectory }
       : { TMPDIR: tempDirectory }),
