@@ -305,6 +305,7 @@ import {
 } from "./chat/PanelLayoutControls";
 import type { ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ThreadDetailsPanel } from "./chat/ThreadDetailsPanel";
+import { BrowserToggleButton } from "./chat/BrowserToggleButton";
 import { ProjectRunControl } from "./chat/ProjectRunControl";
 import { NoActiveThreadState } from "./NoActiveThreadState";
 import {
@@ -2395,6 +2396,7 @@ export default function ChatView(props: ChatViewProps) {
     onOpenTurnDiffStable: openTurnDiffHere,
     openChangesFromThreadPanelStable: openChangesHere,
     openFileSurfaceStable,
+    togglePreviewPanelStable,
     toggleRightPanelMaximizedStable,
     toggleRightPanelStable,
     toggleThreadPanelStable,
@@ -3400,17 +3402,26 @@ export default function ChatView(props: ChatViewProps) {
                 : {})}
               {...(threadFindEnabled ? { onFindInThread: openThreadFindStable } : {})}
               trailingControls={
-                activeProject && !activeProject.isScratch && activeThreadRef && gitCwd ? (
-                  <ProjectRunControl
-                    threadRef={activeThreadRef}
-                    project={activeProject}
-                    cwd={gitCwd}
-                    scripts={activeProjectScripts}
-                    preferredScriptId={lastInvokedScriptByProjectId[activeProject.id] ?? null}
-                    onRunScript={runProjectScriptStable}
-                    onAddScripts={addProjectScriptsStable}
-                  />
-                ) : null
+                <>
+                  {activeProject && !activeProject.isScratch && activeThreadRef && gitCwd ? (
+                    <ProjectRunControl
+                      threadRef={activeThreadRef}
+                      project={activeProject}
+                      cwd={gitCwd}
+                      scripts={activeProjectScripts}
+                      preferredScriptId={lastInvokedScriptByProjectId[activeProject.id] ?? null}
+                      onRunScript={runProjectScriptStable}
+                      onAddScripts={addProjectScriptsStable}
+                    />
+                  ) : null}
+                  {activeThreadRef && browserAvailable && canOperatePreview ? (
+                    <BrowserToggleButton
+                      open={previewPanelOpen}
+                      shortcutLabel={shortcutLabelForCommand(keybindings, "preview.toggle")}
+                      onToggle={togglePreviewPanelStable}
+                    />
+                  ) : null}
+                </>
               }
             />
           </header>

@@ -6,6 +6,9 @@ import {
   ExternalLink,
   MousePointerClick,
   PictureInPicture2,
+  Plus,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import {
   type FormEvent,
@@ -44,6 +47,9 @@ interface Props {
   pickActive?: boolean | undefined;
   pickDisabled?: boolean | undefined;
   pickDisabledReason?: string | undefined;
+  onZoomIn?: (() => void) | undefined;
+  onZoomOut?: (() => void) | undefined;
+  onNewTab?: (() => void) | undefined;
   trailingActions?: ReactNode;
   leadingActions?: ReactNode;
 }
@@ -73,6 +79,9 @@ export function PreviewChromeRow({
   pickActive,
   pickDisabled,
   pickDisabledReason,
+  onZoomIn,
+  onZoomOut,
+  onNewTab,
   trailingActions,
   leadingActions,
 }: Props) {
@@ -283,6 +292,60 @@ export function PreviewChromeRow({
             <TooltipPopup>
               {pictureInPicture ? "Close floating preview" : "Float preview over chat"}
             </TooltipPopup>
+          </Tooltip>
+        ) : null}
+        {onZoomOut && onZoomIn ? (
+          <div className="flex items-center gap-0.5" role="group" aria-label="Zoom">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={onZoomOut}
+                    aria-label="Zoom out"
+                    type="button"
+                  />
+                }
+              >
+                <ZoomOut />
+              </TooltipTrigger>
+              <TooltipPopup>Zoom out</TooltipPopup>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={onZoomIn}
+                    aria-label="Zoom in"
+                    type="button"
+                  />
+                }
+              >
+                <ZoomIn />
+              </TooltipTrigger>
+              <TooltipPopup>Zoom in</TooltipPopup>
+            </Tooltip>
+          </div>
+        ) : null}
+        {onNewTab ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={onNewTab}
+                  aria-label="New browser tab"
+                  type="button"
+                />
+              }
+            >
+              <Plus />
+            </TooltipTrigger>
+            <TooltipPopup>New browser tab</TooltipPopup>
           </Tooltip>
         ) : null}
         {trailingActions}

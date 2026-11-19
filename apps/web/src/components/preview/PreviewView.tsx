@@ -66,6 +66,7 @@ import { PreviewAnnotationSpeech } from "./PreviewAnnotationSpeech";
 import { previewBridge } from "./previewBridge";
 import { subscribePreviewAction } from "./previewActionBus";
 import { closePreviewSession } from "./closePreviewSession";
+import { addBrowserSurface } from "./addBrowserSurface";
 import { openPreviewSession } from "./openPreviewSession";
 import { showPreviewPopup } from "./showPreviewPopup";
 import { PreviewChromeRow } from "./PreviewChromeRow";
@@ -976,6 +977,9 @@ export function PreviewView({
         }
         onPickElement={previewBridge && tabId && !isServerTab ? handlePickElement : undefined}
         pickActive={pickActive}
+        onZoomIn={tabId ? handleZoomIn : undefined}
+        onZoomOut={tabId ? handleZoomOut : undefined}
+        onNewTab={() => void addBrowserSurface({ threadRef, openPreview: open })}
         pickDisabled={!tabId || isUnreachable}
         pickDisabledReason={
           isUnreachable ? "Page didn't load. Pick is unavailable until the page renders" : undefined

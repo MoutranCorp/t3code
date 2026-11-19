@@ -133,6 +133,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
             const isSelected = props.selectedInstanceId === entry.instanceId;
             const isHovered = hoveredInstanceId === entry.instanceId;
             const showInstanceBadge = shouldShowInstanceBadge(entry, props.instanceEntries);
+            const accountEmail = entry.snapshot.auth.email?.trim();
 
             const tooltip = isUnavailable
               ? describeUnavailableInstance(entry)
@@ -160,7 +161,13 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                 focusableWhenDisabled={!isDisabled}
                 aria-pressed={isSelected}
                 type="button"
-                aria-label={isUnavailable || isContextDisabled ? tooltip : entry.displayName}
+                aria-label={
+                  isUnavailable || isContextDisabled
+                    ? tooltip
+                    : accountEmail
+                      ? `${entry.displayName}, ${accountEmail}`
+                      : entry.displayName
+                }
               >
                 <ProviderInstanceIcon
                   driverKind={entry.driverKind}
@@ -203,6 +210,9 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                     align="center"
                   >
                     {tooltip}
+                    {accountEmail ? (
+                      <div className="text-xs text-muted-foreground">{accountEmail}</div>
+                    ) : null}
                   </TooltipPopup>
                 </Tooltip>
               </div>

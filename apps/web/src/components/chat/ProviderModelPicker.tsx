@@ -169,6 +169,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     props.instanceEntries.find((entry) => entry.instanceId === props.activeInstanceId) ?? null;
 
   const activeInstanceId = props.activeInstanceId;
+  const activeAccountEmail = activeEntry?.snapshot.auth.email?.trim();
   const selectedInstanceOptions = props.modelOptionsByInstance.get(activeInstanceId) ?? [];
   const selectedModel =
     resolveModelPickerSelectedModel({
@@ -449,7 +450,12 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                 <TooltipTrigger render={<span {...triggerTextProps} />}>
                   {triggerText}
                 </TooltipTrigger>
-                <TooltipPopup side="top">{triggerTooltipContent}</TooltipPopup>
+                <TooltipPopup side="top">
+                  {triggerTooltipContent}
+                  {activeAccountEmail && !selectedEntries ? (
+                    <div className="text-xs text-muted-foreground">{activeAccountEmail}</div>
+                  ) : null}
+                </TooltipPopup>
               </Tooltip>
             )}
             {props.triggerSuffix}

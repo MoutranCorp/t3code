@@ -19,6 +19,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
   instanceId: ProviderInstanceId;
   driverKind: ProviderDriverKind;
   providerDisplayName: string;
+  accountEmail?: string | undefined;
   providerAccentColor?: string | undefined;
   acpRegistryAgentId?: string | undefined;
   acpRegistryIconUrl?: string | undefined;
@@ -68,7 +69,8 @@ export const ModelListRow = memo(function ModelListRow(props: {
       />
       <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <div
-          className="min-w-0 truncate text-sm font-normal leading-snug"
+          // The name keeps its width; the provider and account text beside it give way first.
+          className="max-w-full shrink-0 truncate text-sm font-normal leading-snug"
           // Names the row in full on hover only when it is cut off.
           onPointerEnter={(event) => {
             const name = event.currentTarget;
@@ -83,6 +85,11 @@ export const ModelListRow = memo(function ModelListRow(props: {
         {props.subProvider ? (
           <span className="min-w-0 shrink truncate text-xs text-muted-foreground/70">
             {props.subProvider}
+          </span>
+        ) : null}
+        {props.accountEmail ? (
+          <span className="min-w-0 shrink truncate text-xs text-muted-foreground/70">
+            {props.accountEmail}
           </span>
         ) : null}
         {props.showNewBadge ? (
